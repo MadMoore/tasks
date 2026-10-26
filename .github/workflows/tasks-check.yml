@@ -1,0 +1,53 @@
+name: Tasks checks
+
+on:
+  push:
+    branches: [main, 'tasks/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tasks-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: ${{ github.repository == 'MadMoore/tasks' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: ./.github/actions/setup-frontend
+      - name: Install Mage
+        run: |
+          go install github.com/magefile/mage@v1.17.2
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
+      - name: Frontend lint and focused unit tests
+        working-directory: frontend
+        run: |
+          pnpm exec eslint src/helpers/filters.ts src/helpers/filters.test.ts src/helpers/setTitle.ts src/composables/useTitle.ts src/components/home/Logo.vue src/views/tasks/ShowTasks.vue src/helpers/branding.ts src/i18n/index.ts vite.config.ts
+          pnpm exec vitest run src/helpers/branding.test.ts src/helpers/filters.test.ts src/views/project/settings/ProjectSettingsArchive.test.ts
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm build
+      - name: Backend lint
+        run: mage lint:fix
+      - name: Source bucket regression and existing bucket tests
+        env:
+          VIKUNJA_DATABASE_TYPE: sqlite
+        run: |
+          set -o pipefail
+          mage test:filter 'TestSourceBucketFilter|TestKanbanViewBucketFiltering|TestSavedFilter_|TestTaskBucket_' 2>&1 | tee /tmp/tasks-tests.log
+      - name: Build API with embedded frontend
+        run: mage build
+      - name: Verify no tracked files changed during checks
+        run: git diff --exit-code
+
+# Validation only. No deployment job, SSH key, VPS access or production secrets.
