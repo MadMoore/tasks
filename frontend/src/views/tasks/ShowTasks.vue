@@ -263,8 +263,8 @@ async function loadPendingTasks(from: Date|string|undefined, to: Date|string|und
 	}
 
 	const params: TaskFilterParams = {
-		sort_by: ['due_date', 'id'],
-		order_by: ['asc', 'desc'],
+		sort_by: showAll.value ? ['priority', 'id'] : ['due_date', 'id'],
+		order_by: showAll.value ? ['desc', 'desc'] : ['asc', 'desc'],
 		filter: 'done = false',
 		filter_include_nulls: props.showNulls,
 		q: '',

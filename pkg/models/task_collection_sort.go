@@ -57,6 +57,9 @@ const (
 	taskPropertyRelevance string = "relevance"
 )
 
+// Filter-only: membership in a bucket of the task's original project.
+const taskPropertySourceBucketID string = "source_bucket_id"
+
 const (
 	orderInvalid    sortOrder = "invalid"
 	orderAscending  sortOrder = "asc"
