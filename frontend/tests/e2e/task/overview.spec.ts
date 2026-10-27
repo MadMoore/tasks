@@ -64,7 +64,7 @@ test.describe('Home focus', () => {
 		await prepareFocus()
 		await page.goto('/')
 		await expect(page.locator(focusRows)).toHaveCount(5)
-		await page.locator(focusRows).first().locator('input[type="checkbox"]').check()
+		await page.locator(focusRows).first().locator('.fancy-checkbox label').click()
 		await expect(page.locator(`${focusRows} .task-link`)).toHaveText(['Focus 4', 'Focus 6', 'Focus 8', 'Focus 3', 'Focus 7'])
 		await page.reload()
 		await expect(page.locator(`${focusRows} .task-link`)).toHaveText(['Focus 4', 'Focus 6', 'Focus 8', 'Focus 3', 'Focus 7'])

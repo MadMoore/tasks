@@ -39,7 +39,7 @@ const showResults = computed(() => term.value.length > 0 && term.value === input
 					v-cy="'homeSearch'"
 					type="search"
 					class="input"
-					:placeholder="$t('filters.query.placeholder')"
+					:placeholder="$t('keyboardShortcuts.quickSearch')"
 					:aria-label="$t('keyboardShortcuts.quickSearch')"
 				>
 				<span
@@ -60,7 +60,7 @@ const showResults = computed(() => term.value.length > 0 && term.value === input
 			>
 				{{ $t('error.error') }}
 			</Message>
-			<p role="status">
+			<p v-if="!taskQuery.isFetching.value && !taskQuery.isError.value" role="status">
 				{{ $t('quickActions.results', matchingProjects.length + taskQuery.total.value) }}
 			</p>
 			<template v-if="matchingProjects.length">
