@@ -117,6 +117,7 @@ test.describe('Home focus', () => {
 			await prepareFocus()
 			await ProjectFactory.create(1, {id: 7, title: 'Archived', is_archived: true}, false)
 			await page.setViewportSize({width: screen.width, height: 1000})
+			await page.addInitScript(() => localStorage.setItem('hideAddToHomeScreenMessage', 'true'))
 			await page.goto('/')
 			const grid = page.getByTestId('projectCardGrid')
 			await expect(grid.locator('.project-grid-item')).toHaveCount(6)
@@ -125,6 +126,7 @@ test.describe('Home focus', () => {
 			const cards = await grid.boundingBox()
 			const focus = await page.getByTestId('showTasks').boundingBox()
 			expect(cards!.y).toBeGreaterThan(focus!.y + focus!.height)
+			expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 			await page.screenshot({path: testInfo.outputPath(`home-${screen.name}.png`), fullPage: true})
 		})
 	}

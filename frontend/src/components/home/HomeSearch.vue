@@ -39,8 +39,8 @@ const showResults = computed(() => term.value.length > 0 && term.value === input
 					v-cy="'homeSearch'"
 					type="search"
 					class="input"
-					:placeholder="$t('keyboardShortcuts.quickSearch')"
-					:aria-label="$t('keyboardShortcuts.quickSearch')"
+					:placeholder="`${$t('quickActions.tasks')} / ${$t('quickActions.projects')}`"
+					:aria-label="`${$t('quickActions.tasks')} / ${$t('quickActions.projects')}`"
 				>
 				<span
 					class="icon is-left"
