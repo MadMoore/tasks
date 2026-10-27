@@ -75,22 +75,28 @@ test.describe('Home focus', () => {
 		expect((await response.json()).done).toBe(true)
 	})
 
-	test('search finds tasks outside focus and projects without creating a task', async ({authenticatedPage: page, apiContext, userToken}) => {
+	test('search finds tasks outside focus and projects without creating a task', async ({authenticatedPage: page, apiContext, userToken}, testInfo) => {
 		await prepareFocus()
 		await page.goto('/')
 		await expect(page.locator(focusRows)).toHaveCount(5)
 		const mutations: string[] = []
 		page.on('request', request => {
-			if (request.method() === 'POST' && request.url().includes('/tasks')) mutations.push(request.url())
+			if (request.method() === 'POST' && /\/projects\/\d+\/tasks(?:\/bulk)?$/.test(new URL(request.url()).pathname)) mutations.push(request.url())
 		})
 		const search = page.getByTestId('homeSearch')
 		await expect(page.locator('.add-task-textarea')).toHaveCount(0)
 		await search.fill('Future start')
 		await search.press('Enter')
 		await expect(page.getByTestId('homeSearchResults').getByRole('link', {name: 'Future start', exact: true})).toBeVisible()
+		await page.screenshot({path: testInfo.outputPath('home-search.png'), fullPage: true})
+		await page.getByTestId('homeSearchResults').getByRole('link', {name: 'Future start', exact: true}).click()
+		await expect(page).toHaveURL(/\/tasks\/20$/)
+		await page.goto('/')
 		await search.fill('Project 6')
 		await expect(page.getByTestId('homeSearchResults').getByRole('link', {name: 'Project 6', exact: true})).toBeVisible()
 		await search.fill('unmatched search words')
+		await expect(page.getByTestId('homeSearchResults')).toBeVisible()
+		await expect(page.getByTestId('homeSearchResults').getByRole('status')).toHaveText('No results')
 		await expect(page.getByTestId('homeSearchResults').getByRole('link')).toHaveCount(0)
 		await search.fill('')
 		await expect(page.getByTestId('homeSearchResults')).toHaveCount(0)

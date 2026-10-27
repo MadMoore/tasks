@@ -83,7 +83,7 @@ const showResults = computed(() => term.value.length > 0 && term.value === input
 						v-for="task in taskQuery.tasks.value"
 						:key="task.id"
 					>
-						<RouterLink :to="{name: 'task.detail', params: {taskId: task.id}}">
+						<RouterLink :to="{name: 'task.detail', params: {id: task.id}}">
 							{{ task.title }}
 						</RouterLink>
 					</li>
