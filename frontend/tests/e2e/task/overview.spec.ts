@@ -1,182 +1,125 @@
 import {test, expect} from '../../support/fixtures'
 import {ProjectFactory} from '../../factories/project'
-import {seed} from '../../support/seed'
 import {TaskFactory} from '../../factories/task'
-import {BucketFactory} from '../../factories/bucket'
-import {updateUserSettings} from '../../support/updateUserSettings'
+import {SavedFilterFactory} from '../../factories/saved_filter'
 import {createDefaultViews} from '../project/prepareProjects'
-import type {APIRequestContext} from '@playwright/test'
+import {updateUserSettings} from '../../support/updateUserSettings'
+import {apiV1Url} from '../../support/apiUrl'
 
-async function seedTasks(apiContext: APIRequestContext, numberOfTasks = 50, startDueDate = new Date()) {
-	const project = (await ProjectFactory.create())[0]
-	const views = await createDefaultViews(project.id)
-	await BucketFactory.create(1, {
-		project_view_id: views[3].id,
-	})
-	const tasks = []
-	let dueDate = startDueDate
-	for (let i = 0; i < numberOfTasks; i++) {
-		const now = new Date()
-		dueDate = new Date(new Date(dueDate).setDate(dueDate.getDate() + 2))
-		tasks.push({
-			id: i + 1,
-			project_id: project.id,
-			done: false,
-			created_by_id: 1,
-			title: 'Test Task ' + i,
-			index: i + 1,
-			due_date: dueDate.toISOString(),
-			created: now.toISOString(),
-			updated: now.toISOString(),
-		})
+async function prepareFocus() {
+	const projects = await ProjectFactory.create(6, {title: i => `Project ${i}`})
+	for (const [index, project] of projects.entries()) {
+		await createDefaultViews(project.id, index * 4 + 1)
 	}
-	await TaskFactory.seed(TaskFactory.table, tasks)
-	return {tasks, project}
+	const past = new Date(Date.now() - 3_600_000).toISOString()
+	const future = new Date(Date.now() + 86_400_000).toISOString()
+	const priorities = [1, 5, 2, 4, 0, 3, 1, 2]
+	await TaskFactory.create(8, {
+		title: i => `Focus ${i}`,
+		project_id: i => projects[(i - 1) % 6].id,
+		start_date: past,
+		due_date: future,
+		priority: i => priorities[i - 1],
+	})
+	await TaskFactory.create(1, {
+		id: 20, title: 'Future start', project_id: projects[0].id,
+		start_date: future, due_date: past, priority: 5,
+	}, false)
+	await TaskFactory.create(1, {
+		id: 21, title: 'No start', project_id: projects[0].id, priority: 5,
+	}, false)
+	await TaskFactory.create(1, {
+		id: 22, title: 'Zero start', project_id: projects[0].id,
+		start_date: '1970-01-01T00:00:00Z', priority: 5,
+	}, false)
+	await TaskFactory.create(1, {
+		id: 23, title: 'Completed', project_id: projects[0].id,
+		start_date: past, priority: 5, done: true,
+	}, false)
+	return projects
 }
 
-test.describe('Home Page Task Overview', () => {
-	test('Should show tasks with a near due date first on the home page overview', async ({authenticatedPage: page, apiContext}) => {
-		const taskCount = 50
-		const {tasks} = await seedTasks(apiContext, taskCount)
+const focusRows = '[data-cy="showTasks"] .tasks > li'
 
-		await page.goto('/')
-		const taskElements = await page.locator('[data-cy="showTasks"] .card .task').all()
-		for (let index = 0; index < taskElements.length; index++) {
-			const taskText = await taskElements[index].innerText()
-			expect(taskText).toContain(tasks[index].title)
-		}
-	})
-
-	test('Should show overdue tasks first, then show other tasks', async ({authenticatedPage: page, apiContext}) => {
-		const now = new Date()
-		const oldDate = new Date(new Date(now).setDate(now.getDate() - 14))
-		const taskCount = 50
-		const {tasks} = await seedTasks(apiContext, taskCount, oldDate)
-
-		await page.goto('/')
-		const taskElements = await page.locator('[data-cy="showTasks"] .card .task').all()
-		for (let index = 0; index < taskElements.length; index++) {
-			const taskText = await taskElements[index].innerText()
-			expect(taskText).toContain(tasks[index].title)
-		}
-	})
-
-	test('Should show a new task with a very soon due date at the top', async ({authenticatedPage: page, apiContext}) => {
-		const {tasks, project} = await seedTasks(apiContext, 49)
-		const newTaskTitle = 'New Task'
-
-		await page.goto('/')
-		await page.waitForLoadState('networkidle')
-
-		await TaskFactory.create(1, {
-			id: 999,
-			title: newTaskTitle,
-			project_id: project.id,
-			due_date: new Date().toISOString(),
-		}, false)
-
-		await page.goto(`/projects/${project.id}/1`)
-		await page.waitForLoadState('networkidle')
-		// Wait for the tasks list to load and contain the new task
-		await expect(page.locator('.tasks')).toContainText(newTaskTitle)
-		await page.goto('/')
-		await page.waitForLoadState('networkidle')
-		await expect(page.locator('[data-cy="showTasks"] .card .task').first()).toContainText(newTaskTitle)
-	})
-
-	test('Should not show a new task without a date at the bottom when there are > 50 tasks', async ({authenticatedPage: page, apiContext}) => {
-		// We're not using the api here to create the task in order to verify the flow
-		const {tasks} = await seedTasks(apiContext, 100)
-		const newTaskTitle = 'New Task'
-
-		await page.goto('/')
-		await page.waitForLoadState('networkidle')
-
-		await page.goto(`/projects/${tasks[0].project_id}/1`)
-		await page.waitForLoadState('networkidle')
-		const taskResponsePromise = page.waitForResponse(response =>
-			response.url().includes('/api/v2/projects/') &&
-			response.url().includes('/tasks/bulk') &&
-			response.request().method() === 'POST',
-		)
-		await page.locator('.task-add textarea').fill(newTaskTitle)
-		await page.locator('.task-add textarea').press('Enter')
-		await taskResponsePromise
-		await page.goto('/')
-		await page.waitForLoadState('networkidle')
-		await expect(page.locator('[data-cy="showTasks"]')).not.toContainText(newTaskTitle)
-	})
-
-	test('Should show a new task without a date at the bottom when there are < 50 tasks', async ({authenticatedPage: page, apiContext}) => {
-		const {project} = await seedTasks(apiContext, 40)
-		const newTaskTitle = 'New Task'
-		await TaskFactory.create(1, {
-			id: 999,
-			title: newTaskTitle,
-			project_id: project.id,
-		}, false)
-
-		await page.goto('/')
-		await page.waitForLoadState('networkidle')
-		await expect(page.locator('[data-cy="showTasks"]')).toContainText(newTaskTitle)
-	})
-
-	test('Should show a task without a due date added via default project at the bottom', async ({authenticatedPage: page, apiContext}) => {
-		const {project} = await seedTasks(apiContext, 40)
-
-		// Navigate first to get access to localStorage
-		await page.goto('/')
-		await page.waitForLoadState('networkidle')
-		const token = await page.evaluate(() => localStorage.getItem('token'))
-
-		await updateUserSettings(apiContext, token, {
-			default_project_id: project.id,
-			overdue_tasks_reminders_time: '9:00',
+test.describe('Home focus', () => {
+	test('shows five started open tasks by priority, independently of saved home filters', async ({authenticatedPage: page, apiContext, userToken}) => {
+		await prepareFocus()
+		await SavedFilterFactory.create(1, {
+			filters: JSON.stringify({filter: 'id = 999999', filter_include_nulls: false}),
 		})
-
-		const newTaskTitle = 'New Task'
-		// Reload page to apply the new settings
+		await updateUserSettings(apiContext, userToken, {
+			frontend_settings: {filter_id_used_on_overview: -2},
+		})
+		await page.goto('/')
+		await expect(page.locator(focusRows)).toHaveCount(5)
+		await expect(page.locator(`${focusRows} .task-link`)).toHaveText(['Focus 2', 'Focus 4', 'Focus 6', 'Focus 8', 'Focus 3'])
 		await page.reload()
-
-		// Wait for page to be fully loaded
-		await page.waitForLoadState('networkidle')
-
-		// Wait for the add task input to be visible and ready
-		const addTaskInput = page.locator('.add-task-textarea')
-		await expect(addTaskInput).toBeVisible()
-
-		await addTaskInput.fill(newTaskTitle)
-
-		// Wait for the task creation request to complete
-		const createTaskPromise = page.waitForResponse(response =>
-			response.url().includes('/api/v2/projects/') &&
-			response.url().includes('/tasks/bulk') &&
-			response.request().method() === 'POST',
-		)
-		await addTaskInput.press('Enter')
-		await createTaskPromise
-
-		// Wait for the task to appear in the list (no due date tasks appear at the bottom)
-		await expect(page.locator('[data-cy="showTasks"] .card .task').last()).toContainText(newTaskTitle, {timeout: 10000})
+		await expect(page.locator(`${focusRows} .task-link`)).toHaveText(['Focus 2', 'Focus 4', 'Focus 6', 'Focus 8', 'Focus 3'])
+		for (const excluded of ['Future start', 'No start', 'Zero start', 'Completed']) {
+			await expect(page.getByTestId('showTasks')).not.toContainText(excluded)
+		}
 	})
 
-	test('Should show the cta buttons for new project when there are no tasks', async ({authenticatedPage: page}) => {
-		// Need a project so that ShowTasks renders (which sets tasksLoaded=true),
-		// but no tasks so the ImportHint becomes visible.
-		const project = (await ProjectFactory.create())[0]
-		await createDefaultViews(project.id)
-
+	test('completing a focus task persists and fills the available slot', async ({authenticatedPage: page, apiContext, userToken}) => {
+		await prepareFocus()
 		await page.goto('/')
-
-		await expect(page.locator('.home.app-content .content')).toContainText('Import your projects and tasks from other services into Vikunja:')
+		await expect(page.locator(focusRows)).toHaveCount(5)
+		await page.locator(focusRows).first().locator('input[type="checkbox"]').check()
+		await expect(page.locator(`${focusRows} .task-link`)).toHaveText(['Focus 4', 'Focus 6', 'Focus 8', 'Focus 3', 'Focus 7'])
+		await page.reload()
+		await expect(page.locator(`${focusRows} .task-link`)).toHaveText(['Focus 4', 'Focus 6', 'Focus 8', 'Focus 3', 'Focus 7'])
+		const response = await apiContext.get(`${apiV1Url().replace('/v1', '/v2')}/tasks/2`, {
+			headers: {Authorization: `Bearer ${userToken}`},
+		})
+		expect(response.ok()).toBeTruthy()
+		expect((await response.json()).done).toBe(true)
 	})
 
-	test('Should not show the cta buttons for new project when there are tasks', async ({authenticatedPage: page, apiContext}) => {
-		await seedTasks(apiContext)
-
+	test('search finds tasks outside focus and projects without creating a task', async ({authenticatedPage: page, apiContext, userToken}) => {
+		await prepareFocus()
 		await page.goto('/')
-
-		await expect(page.locator('.home.app-content .content')).not.toContainText('You can create a new project for your new tasks:')
-		await expect(page.locator('.home.app-content .content')).not.toContainText('Or import your projects and tasks from other services into Vikunja:')
+		await expect(page.locator(focusRows)).toHaveCount(5)
+		const mutations: string[] = []
+		page.on('request', request => {
+			if (request.method() === 'POST' && request.url().includes('/tasks')) mutations.push(request.url())
+		})
+		const search = page.getByTestId('homeSearch')
+		await expect(page.locator('.add-task-textarea')).toHaveCount(0)
+		await search.fill('Future start')
+		await search.press('Enter')
+		await expect(page.getByTestId('homeSearchResults').getByRole('link', {name: 'Future start', exact: true})).toBeVisible()
+		await search.fill('Project 6')
+		await expect(page.getByTestId('homeSearchResults').getByRole('link', {name: 'Project 6', exact: true})).toBeVisible()
+		await search.fill('unmatched search words')
+		await expect(page.getByTestId('homeSearchResults').getByRole('link')).toHaveCount(0)
+		await search.fill('')
+		await expect(page.getByTestId('homeSearchResults')).toHaveCount(0)
+		expect(mutations).toEqual([])
+		const response = await apiContext.get(`${apiV1Url().replace('/v1', '/v2')}/tasks?per_page=50`, {
+			headers: {Authorization: `Bearer ${userToken}`},
+		})
+		expect(response.ok()).toBeTruthy()
+		expect((await response.json()).total).toBe(12)
 	})
+
+	for (const screen of [
+		{name: 'desktop', width: 1440, columns: 6},
+		{name: 'tablet', width: 900, columns: 3},
+		{name: 'mobile', width: 390, columns: 2},
+	]) {
+		test(`keeps all six project cards below focus on ${screen.name}`, async ({authenticatedPage: page}, testInfo) => {
+			await prepareFocus()
+			await ProjectFactory.create(1, {id: 7, title: 'Archived', is_archived: true}, false)
+			await page.setViewportSize({width: screen.width, height: 1000})
+			await page.goto('/')
+			const grid = page.getByTestId('projectCardGrid')
+			await expect(grid.locator('.project-grid-item')).toHaveCount(6)
+			await expect.poll(() => grid.evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(screen.columns)
+			await expect(page.locator(focusRows)).toHaveCount(5)
+			const cards = await grid.boundingBox()
+			const focus = await page.getByTestId('showTasks').boundingBox()
+			expect(cards!.y).toBeGreaterThan(focus!.y + focus!.height)
+			await page.screenshot({path: testInfo.outputPath(`home-${screen.name}.png`), fullPage: true})
+		})
+	}
 })

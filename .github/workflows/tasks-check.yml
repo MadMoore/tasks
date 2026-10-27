@@ -32,8 +32,8 @@ jobs:
       - name: Frontend lint and focused unit tests
         working-directory: frontend
         run: |
-          pnpm exec eslint src/helpers/filters.ts src/helpers/filters.test.ts src/helpers/setTitle.ts src/composables/useTitle.ts src/components/home/Logo.vue src/views/tasks/ShowTasks.vue src/helpers/branding.ts src/i18n/index.ts vite.config.ts
-          pnpm exec vitest run src/helpers/branding.test.ts src/helpers/filters.test.ts src/views/project/settings/ProjectSettingsArchive.test.ts
+          pnpm exec eslint src/helpers/filters.ts src/helpers/filters.test.ts src/helpers/setTitle.ts src/composables/useTitle.ts src/components/home/Logo.vue src/views/tasks/ShowTasks.vue src/views/Home.vue src/components/home/HomeSearch.vue src/components/project/partials/ProjectCardGrid.vue src/composables/useTasks.ts src/helpers/branding.ts src/i18n/index.ts vite.config.ts
+          pnpm exec vitest run src/views/tasks/ShowTasks.test.ts src/helpers/branding.test.ts src/helpers/filters.test.ts src/views/project/settings/ProjectSettingsArchive.test.ts
       - name: Build frontend
         working-directory: frontend
         run: pnpm build
@@ -47,6 +47,24 @@ jobs:
           mage test:filter 'TestSourceBucketFilter|TestKanbanViewBucketFiltering|TestSavedFilter_|TestTaskBucket_' 2>&1 | tee /tmp/tasks-tests.log
       - name: Build API with embedded frontend
         run: mage build
+      - name: Install Chromium for home verification
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Home focus, search and responsive layout
+        env:
+          VIKUNJA_E2E_SKIP_BUILD: 'true'
+        run: |
+          set -o pipefail
+          mage test:e2e 'tests/e2e/task/overview.spec.ts tests/e2e/project/project-history.spec.ts tests/e2e/task/read-only-checkbox-overview.spec.ts' 2>&1 | tee /tmp/tasks-home-e2e.log
+      - name: Home screenshots and test report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tasks-home-verification
+          path: |
+            frontend/test-results/
+            frontend/playwright-report/
+            /tmp/tasks-home-e2e.log
       - name: Verify no tracked files changed during checks
         run: git diff --exit-code
 

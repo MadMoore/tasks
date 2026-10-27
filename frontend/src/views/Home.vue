@@ -19,44 +19,40 @@
 				{{ $t('user.deletion.scheduledCancel') }}
 			</RouterLink>
 		</Message>
-		<AddTask
-			class="is-max-width-desktop"
-			@tasksAdded="updateTaskKey"
-		/>
-		<ImportHint v-if="tasksLoaded" />
-		<div
-			v-if="authStore.settings.frontend_settings.show_last_viewed !== false && projectHistory.length > 0"
-			class="is-max-width-desktop has-text-start mbs-4"
-		>
-			<h2>{{ $t('home.lastViewed') }}</h2>
-			<ProjectCardGrid
-				v-cy="'projectCardGrid'"
-				:projects="projectHistory"
-				:show-even-number-of-projects="true"
-			/>
-		</div>
+		<HomeSearch class="is-max-width-desktop" />
 		<ShowTasks
 			v-if="projectList.hasProjects"
-			:key="showTasksKey"
+			focus
 			:label-ids="labelIds"
 			class="show-tasks"
-			@tasksLoaded="tasksLoaded = true"
 			@clearLabelFilter="handleClearLabelFilter"
 		/>
+		<section
+			v-if="projectList.notArchivedRootProjects.length > 0"
+			class="home-projects has-text-start"
+			aria-labelledby="home-projects-title"
+		>
+			<h2 id="home-projects-title">
+				{{ $t('project.projects') }}
+			</h2>
+			<ProjectCardGrid
+				v-cy="'projectCardGrid'"
+				:projects="projectList.notArchivedRootProjects"
+				overview-layout
+			/>
+		</section>
 	</div>
 </template>
 
 <script lang="ts" setup>
-import {ref, computed, watch} from 'vue'
+import {computed, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 
 import Message from '@/components/misc/Message.vue'
 import ShowTasks from '@/views/tasks/ShowTasks.vue'
 import ProjectCardGrid from '@/components/project/partials/ProjectCardGrid.vue'
-import AddTask from '@/components/tasks/AddTask.vue'
-import ImportHint from '@/components/home/ImportHint.vue'
+import HomeSearch from '@/components/home/HomeSearch.vue'
 
-import {getHistory} from '@/modules/projectHistory'
 import {parseDateOrNull} from '@/helpers/parseDateOrNull'
 import {parseQuickAddPrefill, QUICK_ADD_PREFILL_PARAMS} from '@/helpers/quickAddPrefill'
 import {formatDateSince, formatDisplayDate} from '@/helpers/time/formatDate'
@@ -86,19 +82,6 @@ watch(() => route.query, query => {
 	router.replace({name: 'home', query: rest})
 }, {immediate: true})
 
-const projectHistory = computed(() => {
-	// If we don't check this, it tries to load the project background right after logging out	
-	if(!authStore.authenticated) {
-		return []
-	}
-	
-	return getHistory()
-		.map(l => projectList.projects[l.id])
-		.filter(l => Boolean(l))
-})
-
-const tasksLoaded = ref(false)
-
 const deletionScheduledAt = computed(() => parseDateOrNull(authStore.info?.deletion_scheduled_at))
 
 // Extract label IDs from query parameter
@@ -109,14 +92,6 @@ const labelIds = computed(() => {
 	}
 	return Array.isArray(labelsParam) ? labelsParam.filter((id): id is string => id !== null) : [labelsParam]
 })
-
-// This is to reload the tasks list after adding a new task through the global task add.
-// FIXME: Should use pinia (somehow?)
-const showTasksKey = ref(0)
-
-function updateTaskKey() {
-	showTasksKey.value++
-}
 
 function handleClearLabelFilter() {
 	const query = {...route.query}
@@ -129,7 +104,8 @@ function handleClearLabelFilter() {
 </script>
 
 <style scoped lang="scss">
-.show-tasks {
+.show-tasks,
+.home-projects {
 	margin-block-start: 2rem;
 }
 </style>

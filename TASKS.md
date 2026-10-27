@@ -6,6 +6,17 @@ notices and technical API/database identifiers are retained.
 
 ## Changes
 
+- Home replaces quick task creation with a search of tasks and projects.
+  Searching does not create tasks or change the focus criteria.
+- Home focus shows at most five open tasks with a real start date before now,
+  ordered by descending priority and descending ID for ties. Tasks with no start
+  date or a future start date are excluded, regardless of their due date/bucket.
+  The list refreshes each minute and after completing a task. Saved home-filter
+  preferences do not override this focus list.
+- All accessible active root projects appear below focus, independent of visit
+  history, in six columns on desktop, three on tablet and two on mobile. Saved
+  filters and archived projects are not project cards.
+
 - Tasks branding in the browser title, web logo, installable PWA and compiled
   locale resources. Locale source files stay compatible with upstream.
 - Overview's all-tasks section orders by descending priority, then descending ID.
@@ -27,8 +38,8 @@ done = false && sourceBucketId in 10, 20, 30
 
 These are example bucket IDs, not task IDs. Select the actual bucket IDs for
 your installation. Select priority descending in its List view. In user settings,
-choose that saved filter as the home-page filter if desired. The Overview now
-also uses priority descending for its all-tasks section.
+use its List view separately. The Home focus now uses its own start-date rules;
+the legacy home-page saved-filter preference does not narrow that list.
 
 Moving tasks into/out of the referenced buckets changes matching results on the
 next read; no external synchronizer or status tags are required. Creating or
