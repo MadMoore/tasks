@@ -14,6 +14,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  updater:
+    if: ${{ github.repository == 'MadMoore/tasks' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check updater syntax and shell style
+        run: |
+          bash -n contrib/tasks-update.sh contrib/test-tasks-update.sh
+          shellcheck contrib/tasks-update.sh contrib/test-tasks-update.sh
+      - name: Verify update and failure recovery with synthetic data
+        run: sudo bash contrib/test-tasks-update.sh
   verify:
     if: ${{ github.repository == 'MadMoore/tasks' }}
     runs-on: ubuntu-latest
