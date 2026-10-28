@@ -207,6 +207,52 @@ func TestAvatarUpload(t *testing.T) {
 	})
 }
 
+func TestAvatarUploadOwnedBot(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		caller int64
+		target int64
+		status int
+	}{
+		{"owner", 21, 23, http.StatusOK},
+		{"foreign bot", 22, 23, http.StatusForbidden},
+		{"human account", 21, 22, http.StatusForbidden},
+		{"own human account", 21, 21, http.StatusForbidden},
+		{"sibling bot", 25, 23, http.StatusForbidden},
+		{"missing bot", 21, 999999, http.StatusNotFound},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e, err := setupTestEnv()
+			require.NoError(t, err)
+			body, contentType := multipartAvatarBody(t, "avatar", "avatar.png", pngBytes(t))
+			req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("%s?owner_id=%d", avatarUploadPath, tc.target), body)
+			req.Header.Set("Content-Type", contentType)
+			req.Header.Set("Authorization", "Bearer "+humaTokenFor(t, &user.User{ID: tc.caller}))
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, req)
+			require.Equal(t, tc.status, rec.Code, "body: %s", rec.Body.String())
+			s := db.NewSession()
+			defer s.Close()
+			bot, err := user.GetUserByID(s, 23)
+			require.NoError(t, err)
+			if tc.status == http.StatusOK {
+				assert.Equal(t, "upload", bot.AvatarProvider)
+				assert.NotZero(t, bot.AvatarFileID)
+				// This is the same endpoint used by UserAvatar in comments.
+				avatar := humaRequest(t, e, http.MethodGet, "/api/v2/avatar/"+bot.Username+"?size=48", "", humaTokenFor(t, &user.User{ID: 21}), "")
+				require.Equal(t, http.StatusOK, avatar.Code)
+				_, err = png.Decode(bytes.NewReader(avatar.Body.Bytes()))
+				require.NoError(t, err)
+			} else {
+				assert.Zero(t, bot.AvatarFileID)
+			}
+			owner, err := user.GetUserByID(s, 21)
+			require.NoError(t, err)
+			assert.Zero(t, owner.AvatarFileID)
+		})
+	}
+}
+
 func pngWithClaimedDimensionsPatch(t *testing.T, width, height int) []byte {
 	t.Helper()
 	data := pngBytes(t)

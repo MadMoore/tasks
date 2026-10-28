@@ -11105,7 +11105,12 @@ export type UserAvatarUploadData = {
         avatar: Blob | File;
     };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Upload for this bot instead of the caller. Must be a bot owned by the authenticated user.
+         */
+        owner_id?: number;
+    };
     url: '/user/settings/avatar';
 };
 

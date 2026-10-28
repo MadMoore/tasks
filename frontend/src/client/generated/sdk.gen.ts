@@ -3787,7 +3787,7 @@ export const sessionsDelete = <ThrowOnError extends boolean = true>(options: Opt
 /**
  * Upload your avatar
  *
- * Uploads an image as the authenticated user's avatar and switches their avatar provider to "upload". The image is validated to be an image, resized server-side, and stored as PNG. Replaces any previously uploaded avatar (idempotent replace, hence PUT). An image the server cannot decode fails with 400, an image over the pixel limit fails with 400 and code 4032, and the request fails with 503 and code 4037 when the server is too busy decoding other images.
+ * Uploads an image as the authenticated user's avatar, or for a bot they own when owner_id is set, and switches the target's avatar provider to upload. The image is validated, resized server-side, and stored as PNG. Replaces any previously uploaded avatar. An image the server cannot decode fails with 400, an image over the pixel limit fails with 400 and code 4032, and the request fails with 503 and code 4037 when the server is too busy decoding other images.
  */
 export const userAvatarUpload = <ThrowOnError extends boolean = true>(options: Options<UserAvatarUploadData, ThrowOnError>): RequestResult<UserAvatarUploadResponses, UserAvatarUploadErrors, ThrowOnError> => (options.client ?? client).put<UserAvatarUploadResponses, UserAvatarUploadErrors, ThrowOnError>({
     ...formDataBodySerializer,
