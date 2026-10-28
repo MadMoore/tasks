@@ -34,6 +34,12 @@ Mantener y comprobar las personalizaciones de Tasks:
 - Fotos de agentes, permisos de propietario y fotos en comentarios existentes.
 - Actualizador manual, copia consistente y recuperación ante errores.
 
+Para revisiones programadas, preparar una candidata `tasks/upstream-*` desde la
+rama de entrega vigente. Su push ejecuta `Tasks checks` sin desplegar ni requerir
+que esta PR ya se haya integrado en la rama predeterminada. Solo tras pasar las
+pruebas, avanzar la entrega mediante fast-forward si su revisión no cambió;
+si hay cambios concurrentes, integrar y validar de nuevo.
+
 `Tasks checks` comprueba la compilación de frontend/API, cliente generado,
 pruebas del fork y pruebas de los componentes upstream afectados. Ampliar esas
 pruebas según cambie el alcance; no considerar suficiente un merge sin conflictos.

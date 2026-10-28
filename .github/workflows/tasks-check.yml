@@ -2,7 +2,7 @@ name: Tasks checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'tasks/upstream-*']
   pull_request:
   workflow_dispatch:
 
