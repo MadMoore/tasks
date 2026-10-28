@@ -1,0 +1,92 @@
+name: Tasks checks
+
+on:
+  push:
+    branches: [main, 'tasks/upstream-*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tasks-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  updater:
+    if: ${{ github.repository == 'MadMoore/tasks' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check updater syntax and shell style
+        run: |
+          bash -n contrib/tasks-update.sh contrib/test-tasks-update.sh
+          shellcheck contrib/tasks-update.sh contrib/test-tasks-update.sh
+      - name: Verify update and failure recovery with synthetic data
+        run: sudo bash contrib/test-tasks-update.sh
+  verify:
+    if: ${{ github.repository == 'MadMoore/tasks' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: ./.github/actions/setup-frontend
+      - name: Install Mage
+        run: |
+          go install github.com/magefile/mage@v1.17.2
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
+      - name: Frontend lint and focused unit tests
+        working-directory: frontend
+        run: |
+          pnpm exec eslint src/helpers/filters.ts src/helpers/filters.test.ts src/helpers/setTitle.ts src/composables/useTitle.ts src/components/home/Logo.vue src/views/tasks/ShowTasks.vue src/views/Home.vue src/components/home/HomeSearch.vue src/components/project/partials/ProjectCardGrid.vue src/composables/useTasks.ts src/helpers/branding.ts src/i18n/index.ts vite.config.ts
+          pnpm exec eslint src/client/queries/avatars.ts src/views/user/settings/BotUsers.vue
+          pnpm exec stylelint src/views/user/settings/BotUsers.vue
+          pnpm exec vitest run src/views/tasks/ShowTasks.test.ts src/helpers/branding.test.ts src/helpers/filters.test.ts src/views/project/settings/ProjectSettingsArchive.test.ts src/client/queries/avatars.test.ts src/client/queries/bots.test.ts src/components/misc/UserAvatar.test.ts src/components/time-tracking/TimeEntryForm.test.ts src/helpers/time/formatTimeRange.test.ts
+      - name: Generated API client is current
+        run: mage check:frontend-client
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm build
+      - name: Backend lint
+        run: mage lint:fix
+      - name: Fork regressions and upstream migration, reminders, timers and CalDAV
+        env:
+          VIKUNJA_DATABASE_TYPE: sqlite
+        run: |
+          set -o pipefail
+          mage test:filter 'TestSourceBucketFilter|TestKanbanViewBucketFiltering|TestSavedFilter_|TestTaskBucket_|TestSubscribeCreatorsAndAssigneesToTasks20261021192508|TestTimeEntry_|TestReminder|TestGetTaskUsersForTasks|TestSendDueReminders|TestCalendarQueryFilters|TestNonVTODOContentIsForbidden|TestCRUD' 2>&1 | tee /tmp/tasks-tests.log
+      - name: Build API with embedded frontend
+        run: mage build
+      - name: Avatar upload ownership and image validation
+        env:
+          VIKUNJA_DATABASE_TYPE: sqlite
+        run: |
+          set -o pipefail
+          go test -v -run '^TestAvatarUpload' ./pkg/webtests/ 2>&1 | tee /tmp/tasks-avatar-webtests.log
+      - name: Install Chromium for home verification
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Home focus, search and responsive layout
+        env:
+          VIKUNJA_E2E_SKIP_BUILD: 'true'
+        run: |
+          set -o pipefail
+          mage test:e2e 'tests/e2e/task/overview.spec.ts tests/e2e/project/project-history.spec.ts tests/e2e/task/read-only-checkbox-overview.spec.ts tests/e2e/user/settings/bot-avatar.spec.ts' 2>&1 | tee /tmp/tasks-home-e2e.log
+      - name: Home screenshots and test report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tasks-home-verification
+          path: |
+            frontend/test-results/
+            frontend/playwright-report/
+            /tmp/tasks-home-e2e.log
+      - name: Verify no tracked files changed during checks
+        run: git diff --exit-code
+
+# Validation only. No deployment job, SSH key, VPS access or production secrets.

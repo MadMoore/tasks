@@ -11,6 +11,8 @@ import Message from '@/components/misc/Message.vue'
 import Pagination from '@/components/misc/Pagination.vue'
 import PaginationEmit from '@/components/misc/PaginationEmit.vue'
 import ApiTokenForm from '@/components/token/ApiTokenForm.vue'
+import UserAvatar from '@/components/misc/UserAvatar.vue'
+import {useUploadAvatarMutation} from '@/client/queries/avatars'
 
 import {botsQuery, useCreateBotMutation, useUpdateBotMutation, useDeleteBotMutation} from '@/client/queries/bots'
 import {clampPage, normalizePageNumber} from '@/client/queries/pagination'
@@ -34,6 +36,7 @@ const createMutation = useCreateBotMutation()
 const updateMutation = useUpdateBotMutation()
 const deleteMutation = useDeleteBotMutation()
 const deleteTokenMutation = useDeleteApiTokenMutation()
+const uploadAvatarMutation = useUploadAvatarMutation()
 const bots = computed(() => (botPage.value?.items ?? []).filter((bot): bot is Bot => typeof bot.id === 'number' && bot.id > 0 && typeof bot.status === 'number'))
 const totalPages = computed(() => botPage.value?.total_pages ?? 0)
 const hasBots = computed(() => (botPage.value?.total ?? 0) > 0)
@@ -65,6 +68,16 @@ const nameDraft = ref<Record<number, string>>({})
 
 const showDeleteModal = ref<boolean>(false)
 const botToDelete = ref<Bot>()
+
+async function uploadBotAvatar(bot: Bot, event: Event) {
+	const input = event.target as HTMLInputElement
+	const file = input.files?.[0]
+	if (!file || !bot.username) return
+	try {
+		await uploadAvatarMutation.mutateAsync({username: bot.username, ownerId: bot.id, blob: file})
+	} catch { /* Mutation reports the error. */ }
+	finally { input.value = '' }
+}
 
 async function createBot() {
 	createError.value = null
@@ -205,6 +218,11 @@ async function deleteToken(token: ApiToken) {
 			class="bot-card"
 		>
 			<div class="bot-header">
+				<UserAvatar
+					:user="bot"
+					:size="48"
+					class="bot-avatar"
+				/>
 				<strong>{{ bot.username }}</strong>
 				<template v-if="editingName[bot.id]">
 					<span class="bot-name-edit">—</span>
@@ -245,6 +263,17 @@ async function deleteToken(token: ApiToken) {
 				</template>
 				<span class="status">{{ bot.status === STATUS_ACTIVE ? $t('admin.users.statusActive') : $t('admin.users.statusDisabled') }}</span>
 			</div>
+			<FormField :label="$t('user.settings.avatar.uploadAvatar')">
+				<template #default="{id}">
+					<input
+						:id="id"
+						type="file"
+						accept="image/png,image/jpeg,image/gif,image/tiff,image/bmp"
+						:disabled="uploadAvatarMutation.isPending.value"
+						@change="uploadBotAvatar(bot, $event)"
+					>
+				</template>
+			</FormField>
 			<div class="bot-actions">
 				<XButton
 					variant="secondary"
@@ -367,9 +396,16 @@ async function deleteToken(token: ApiToken) {
 
 .bot-header {
 	display: flex;
+	flex-wrap: wrap;
 	gap: .5rem;
 	align-items: center;
 	margin-block-end: .5rem;
+}
+
+.bot-avatar {
+	flex-shrink: 0;
+	border-radius: 50%;
+	object-fit: cover;
 }
 
 .bot-name-input {

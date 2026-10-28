@@ -501,6 +501,9 @@ func getValueForField(field reflect.StructField, rawValue string, loc *time.Loca
 func getNativeValueForTaskField(fieldName string, comparator taskFilterComparator, value string, loc *time.Location) (reflectField *reflect.StructField, nativeValue interface{}, err error) {
 
 	realFieldName := strings.ReplaceAll(strcase.ToCamel(fieldName), "Id", "ID")
+	if fieldName == taskPropertySourceBucketID {
+		realFieldName = "BucketID"
+	}
 
 	if realFieldName == "Assignees" || realFieldName == "CreatedBy" {
 		vals := strings.Split(value, ",")

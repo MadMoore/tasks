@@ -30,7 +30,7 @@ test.describe('Read-only checkbox on Overview', () => {
 			title: 'Shared Read-Only Project',
 			owner_id: otherUser.id,
 		}, false)
-		const sharedViews = await createDefaultViews(sharedProject.id, 5, false)
+		const sharedViews = await createDefaultViews(sharedProject.id, 5)
 		await BucketFactory.create(1, {
 			id: 2,
 			project_view_id: sharedViews[3].id,
@@ -54,6 +54,7 @@ test.describe('Read-only checkbox on Overview', () => {
 			project_id: ownProject.id,
 			created_by_id: currentUser.id,
 			due_date: soon.toISOString(),
+			start_date: new Date(now.getTime() - 3600000).toISOString(),
 		})
 
 		// Create a task in the shared read-only project
@@ -63,6 +64,7 @@ test.describe('Read-only checkbox on Overview', () => {
 			project_id: sharedProject.id,
 			created_by_id: otherUser.id,
 			due_date: soon.toISOString(),
+			start_date: new Date(now.getTime() - 3600000).toISOString(),
 		}, false)
 
 		await page.goto('/')

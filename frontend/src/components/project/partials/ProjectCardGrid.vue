@@ -1,7 +1,7 @@
 <template>
 	<ul
 		class="project-grid"
-		:class="{ 'show-even-number-of-projects': showEvenNumberOfProjects }"
+		:class="{ 'show-even-number-of-projects': showEvenNumberOfProjects, 'overview-layout': overviewLayout }"
 	>
 		<li
 			v-for="(item, index) in filteredProjects"
@@ -24,10 +24,12 @@ const props = withDefaults(defineProps<{
 	showArchived?: boolean,
 	itemLimit?: boolean,
 	showEvenNumberOfProjects?: boolean,
+	overviewLayout?: boolean,
 }>(), {
 	showArchived: false,
 	itemLimit: false,
 	showEvenNumberOfProjects: false,
+	overviewLayout: false,
 })
 
 const filteredProjects = computed(() => {
@@ -69,6 +71,23 @@ const filteredProjects = computed(() => {
 			.project-grid-item:nth-child(5) {
 				display: none;
 			}
+		}
+	}
+
+	&.overview-layout {
+		--project-grid-columns: 2;
+		grid-template-columns: repeat(var(--project-grid-columns), minmax(0, 1fr));
+
+		@media screen and (min-width: $tablet) {
+			--project-grid-columns: 3;
+		}
+
+		@media screen and (min-width: $desktop) {
+			--project-grid-columns: 6;
+		}
+
+		:deep(.project-title) {
+			font-size: 1.1rem;
 		}
 	}
 }

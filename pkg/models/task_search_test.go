@@ -356,3 +356,55 @@ func TestDBTaskSearcher_NoScopeReturnsNothing(t *testing.T) {
 	assert.Empty(t, tasks)
 	assert.Zero(t, count)
 }
+
+func TestSourceBucketFilter(t *testing.T) {
+	db.LoadAndAssertFixtures(t)
+	s := db.NewSession()
+	defer s.Close()
+	u := &user.User{ID: 1}
+
+	// The filter's list view has no buckets from the source project.
+	sf := &SavedFilter{
+		Title:   "Source buckets",
+		Filters: &TaskCollection{Filter: "source_bucket_id in 1, 4"},
+	}
+	require.NoError(t, sf.Create(s, u))
+	view := &ProjectView{}
+	found, err := s.Where("project_id = ? AND view_kind = ?", getProjectIDFromSavedFilterID(sf.ID), ProjectViewKindList).Get(view)
+	require.NoError(t, err)
+	require.True(t, found)
+	read := func() map[int64]int {
+		return searchTaskPositions(t, s, u, &TaskCollection{
+			ProjectID:     getProjectIDFromSavedFilterID(sf.ID),
+			ProjectViewID: view.ID,
+		}, "")
+	}
+	assert.Contains(t, read(), int64(1))
+	assert.NotContains(t, read(), int64(3)) // different source bucket
+
+	move := &TaskBucket{
+		TaskID:        1,
+		ProjectID:     1,
+		ProjectViewID: 4,
+		BucketID:      3,
+	}
+	require.NoError(t, move.Update(s, u))
+	assert.NotContains(t, read(), int64(1))
+	move.BucketID = 1
+	require.NoError(t, move.Update(s, u))
+	assert.Contains(t, read(), int64(1))
+
+	// A valid source bucket must never grant access to another user's tasks.
+	outsider := &user.User{
+		Username: "source-bucket-outsider",
+		Email:    "source-bucket-outsider@example.com",
+		Status:   user.StatusActive,
+	}
+	_, err = s.Insert(outsider)
+	require.NoError(t, err)
+	assert.Empty(t, searchTaskPositions(t, s, outsider, &TaskCollection{Filter: "source_bucket_id in 1, 4"}, ""))
+	assert.Contains(t, searchTaskPositions(t, s, &user.User{ID: 3}, &TaskCollection{Filter: "source_bucket_id = 4"}, ""), int64(13))
+
+	// This is a filter alias, never an SQL sort column.
+	require.Error(t, validateTaskFieldForSorting(taskPropertySourceBucketID))
+}

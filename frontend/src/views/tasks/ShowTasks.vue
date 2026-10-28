@@ -139,8 +139,10 @@ const props = withDefaults(defineProps<{
 	showNulls?: boolean,
 	showOverdue?: boolean,
 	labelIds?: string[],
+	focus?: boolean,
 }>(), {
 	showNulls: false,
+	focus: false,
 	showOverdue: false,
 	dateFrom: undefined,
 	dateTo: undefined,
@@ -163,7 +165,10 @@ const {t} = useI18n({useScope: 'global'})
 const taskScope = ref<TaskScope | null>(null)
 const taskQuery = useTasks(
 	() => taskScope.value ?? {},
-	{enabled: () => authStore.authenticated && taskScope.value !== null},
+	{
+		enabled: () => authStore.authenticated && taskScope.value !== null,
+		refetchInterval: () => props.focus ? 60_000 : false,
+	},
 )
 const tasks = taskQuery.tasks
 const showNothingToDo = ref<boolean>(false)
@@ -263,12 +268,17 @@ async function loadPendingTasks(from: Date|string|undefined, to: Date|string|und
 	}
 
 	const params: TaskFilterParams = {
-		sort_by: ['due_date', 'id'],
-		order_by: ['asc', 'desc'],
+		sort_by: showAll.value ? ['priority', 'id'] : ['due_date', 'id'],
+		order_by: showAll.value ? ['desc', 'desc'] : ['asc', 'desc'],
 		filter: 'done = false',
 		filter_include_nulls: props.showNulls,
 		q: '',
 		expand: ['comment_count', 'is_unread'],
+	}
+	if (props.focus) {
+		params.filter = 'done = false && start_date > \'1970-01-01T00:00:00Z\' && start_date < now'
+		params.filter_include_nulls = false
+		params.per_page = 5
 	}
 
 	if (!showAll.value) {
@@ -290,7 +300,7 @@ async function loadPendingTasks(from: Date|string|undefined, to: Date|string|und
 	}
 
 	let projectId = null
-	if (showAll.value && filterId && typeof projectList.projects[filterId] !== 'undefined'
+	if (!props.focus && showAll.value && filterId && typeof projectList.projects[filterId] !== 'undefined'
 		&& (!props.labelIds || props.labelIds.length === 0)) {
 		projectId = filterId
 	}
