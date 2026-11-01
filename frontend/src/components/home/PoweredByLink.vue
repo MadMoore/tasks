@@ -6,6 +6,13 @@
 	>
 		{{ $t('misc.poweredBy') }}
 	</BaseButton>
+	<BaseButton
+		class="menu-bottom-link"
+		href="https://github.com/MadMoore/tasks"
+		target="_blank"
+	>
+		Tasks — {{ $t('misc.sourceCode') }}
+	</BaseButton>
 </template>
 
 <script setup lang="ts">

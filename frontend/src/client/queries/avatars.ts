@@ -81,17 +81,18 @@ export function useUpdateAvatarProviderMutation() {
 
 export function uploadAvatarMutationOptions() {
 	return contextMutationOptions({
-		mutationFn: async ({blob}: {
+		mutationFn: async ({blob, ownerId}: {
 			username: string,
 			blob: Blob,
+			ownerId?: number,
 		}) => {
 			// The upload fails without a file name.
 			const avatar = new File([blob], 'avatar.png', {type: blob.type})
-			const {data} = await userAvatarUpload({body: {avatar}})
+			const {data} = await userAvatarUpload({body: {avatar}, ...(ownerId ? {query: {owner_id: ownerId}} : {})})
 			return data
 		},
-		onSettled: ({username}, client) => Promise.all([
-			client.invalidateQueries({queryKey: avatarKeys.provider}),
+		onSettled: ({username, ownerId}, client) => Promise.all([
+			...(!ownerId ? [client.invalidateQueries({queryKey: avatarKeys.provider})] : []),
 			client.invalidateQueries({queryKey: avatarKeys.user(username)}),
 		]),
 		successMessage: () => i18n.global.t('user.settings.avatar.setSuccess'),

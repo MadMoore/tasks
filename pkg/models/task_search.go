@@ -39,6 +39,11 @@ type SubTableFilter struct {
 type SubTableFilters map[string]SubTableFilter
 
 var subTableFilters = SubTableFilters{
+	taskPropertySourceBucketID: {
+		Table:           "task_buckets",
+		BaseFilter:      "tasks.id = task_id",
+		FilterableField: "task_buckets.bucket_id",
+	},
 	"labels": {
 		Table:           "label_tasks",
 		BaseFilter:      "tasks.id = task_id",
@@ -120,6 +125,13 @@ func (sf *SubTableFilter) ToBaseSubQuery(taskAlias string) *builder.Builder {
 		Select("1").
 		From(sf.Table).
 		Where(builder.Expr(baseFilter))
+
+	// Virtual projects belong to saved filters; their buckets are private to
+	// the filter owner and must not influence cross-project membership.
+	if sf.Table == "task_buckets" {
+		cond.And(builder.In("project_view_id", builder.Select("id").From("project_views").
+			Where(builder.Gt{"project_id": 0})))
+	}
 
 	// little hack to add users table for assignees filter
 	if sf.Table == "task_assignees" {

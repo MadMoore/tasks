@@ -608,6 +608,8 @@ describe('hasFilterQuery', () => {
 
 	it.each([
 		'done = false',
+		'sourceBucketId in 1, 4',
+		'source_bucket_id in 1, 4',
 		'done=false',
 		'priority >= 3',
 		'dueDate < now',

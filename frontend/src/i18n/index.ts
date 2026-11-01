@@ -1,6 +1,7 @@
 import type { PluralizationRule } from 'vue-i18n'
 import { createI18n } from 'vue-i18n'
 import langEN from './lang/en.json'
+import {brandMessages} from '@/helpers/branding'
 
 import { loadDayJsLocale } from '@/i18n/useDayjsLanguageSync.ts'
 import dayjs from 'dayjs'
@@ -82,7 +83,7 @@ export const i18n = createI18n({
 		},
 	},
 	messages: {
-		[DEFAULT_LANGUAGE]: langEN,
+		[DEFAULT_LANGUAGE]: brandMessages(langEN),
 	} as Record<SupportedLocale, typeof langEN>,
 })
 
@@ -100,7 +101,7 @@ export async function setLanguage(lang: SupportedLocale): Promise<SupportedLocal
 	if (!i18n.global.availableLocales.includes(lang)) {
 		try {
 			const messages = await import(`./lang/${lang}.json`)
-			i18n.global.setLocaleMessage(lang, messages.default)
+			i18n.global.setLocaleMessage(lang, brandMessages(messages.default))
 		} catch (e) {
 			console.error(`Failed to load language ${lang}:`, e)
 			return setLanguage(getBrowserLanguage())

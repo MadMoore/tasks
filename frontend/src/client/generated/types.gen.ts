@@ -95,6 +95,10 @@ export type AdminUser = {
      */
     readonly auth_provider?: string;
     /**
+     * The user who created this bot. Only set for bot users.
+     */
+    readonly bot_owner?: User;
+    /**
      * The id of the owning (human) user. Set by the server on creation; a non-zero value means this user is a bot.
      */
     readonly bot_owner_id?: number;
@@ -234,6 +238,10 @@ export type BotUser = {
      */
     readonly $schema?: string;
     /**
+     * The user who created this bot. Only set for bot users.
+     */
+    readonly bot_owner?: User;
+    /**
      * The id of the owning (human) user. Set by the server on creation; a non-zero value means this user is a bot.
      */
     readonly bot_owner_id?: number;
@@ -272,6 +280,10 @@ export type BotUserReadBody = {
      * A URL to the JSON Schema for this object.
      */
     readonly $schema?: string;
+    /**
+     * The user who created this bot. Only set for bot users.
+     */
+    readonly bot_owner?: User;
     /**
      * The id of the owning (human) user. Set by the server on creation; a non-zero value means this user is a bot.
      */
@@ -315,6 +327,10 @@ export type BotUserUpdateBody = {
      * A URL to the JSON Schema for this object.
      */
     readonly $schema?: string;
+    /**
+     * The user who created this bot. Only set for bot users.
+     */
+    readonly bot_owner?: User;
     /**
      * The id of the owning (human) user. Set by the server on creation; a non-zero value means this user is a bot.
      */
@@ -883,8 +899,27 @@ export type LdapAuthInfo = {
 };
 
 export type LegalInfo = {
+    /**
+     * Deprecated: use links, which also contains this url.
+     *
+     * @deprecated
+     */
     imprint_url?: string;
+    /**
+     * All legal links, including the deprecated imprint and privacy policy urls.
+     */
+    links?: Array<LegalLink> | null;
+    /**
+     * Deprecated: use links, which also contains this url.
+     *
+     * @deprecated
+     */
     privacy_policy_url?: string;
+};
+
+export type LegalLink = {
+    text?: string;
+    url?: string;
 };
 
 export type LinkShareReadBody = {
@@ -2744,6 +2779,10 @@ export type TeamReadBody = {
 export type TeamUser = {
     admin?: boolean;
     /**
+     * The user who created this bot. Only set for bot users.
+     */
+    readonly bot_owner?: User;
+    /**
      * The id of the owning (human) user. Set by the server on creation; a non-zero value means this user is a bot.
      */
     readonly bot_owner_id?: number;
@@ -3025,6 +3064,10 @@ export type User = {
      */
     readonly $schema?: string;
     /**
+     * The user who created this bot. Only set for bot users.
+     */
+    readonly bot_owner?: User;
+    /**
      * The id of the owning (human) user. Set by the server on creation; a non-zero value means this user is a bot.
      */
     readonly bot_owner_id?: number;
@@ -3229,6 +3272,10 @@ export type UserInfoBody = {
      */
     readonly auth_provider?: string;
     /**
+     * The user who created this bot. Only set for bot users.
+     */
+    readonly bot_owner?: User;
+    /**
      * The id of the owning (human) user. Set by the server on creation; a non-zero value means this user is a bot.
      */
     readonly bot_owner_id?: number;
@@ -3330,6 +3377,10 @@ export type UserInviteLink = {
 };
 
 export type UserWithPermission = {
+    /**
+     * The user who created this bot. Only set for bot users.
+     */
+    readonly bot_owner?: User;
     /**
      * The id of the owning (human) user. Set by the server on creation; a non-zero value means this user is a bot.
      */
@@ -11105,7 +11156,12 @@ export type UserAvatarUploadData = {
         avatar: Blob | File;
     };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Upload for this bot instead of the caller. Must be a bot owned by the authenticated user.
+         */
+        owner_id?: number;
+    };
     url: '/user/settings/avatar';
 };
 

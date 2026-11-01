@@ -3180,7 +3180,7 @@ export const timeEntriesList = <ThrowOnError extends boolean = true>(options?: O
 /**
  * Create a time entry
  *
- * Logs a manual time entry for the authenticated user. Exactly one of task_id / project_id must be set.
+ * Logs a time entry for the authenticated user. Exactly one of task_id / project_id must be set. Omit end_time to start a running timer: your entries spanning a past start_time end there, and a running timer that doesn't span it stops at now.
  */
 export const timeEntriesCreate = <ThrowOnError extends boolean = true>(options: Options<TimeEntriesCreateData, ThrowOnError>): RequestResult<TimeEntriesCreateResponses, TimeEntriesCreateErrors, ThrowOnError> => (options.client ?? client).post<TimeEntriesCreateResponses, TimeEntriesCreateErrors, ThrowOnError>({
     security: [{
@@ -3443,7 +3443,7 @@ export const botsList = <ThrowOnError extends boolean = true>(options?: Options<
 /**
  * Create a bot user
  *
- * Creates a bot user owned by the authenticated user. The username must start with the 'bot-' prefix. Bots have no email or password and cannot create further bots. Requires a real user account — link shares cannot create bots.
+ * Creates a bot user owned by the authenticated user. The username must start with the 'bot-' prefix. Bots have no email or password and cannot create further bots. The owner becomes visible to anyone who can see the bot, as its bot_owner. Requires a real user account — link shares cannot create bots.
  */
 export const botsCreate = <ThrowOnError extends boolean = true>(options: Options<BotsCreateData, ThrowOnError>): RequestResult<BotsCreateResponses, BotsCreateErrors, ThrowOnError> => (options.client ?? client).post<BotsCreateResponses, BotsCreateErrors, ThrowOnError>({
     security: [{
@@ -3787,7 +3787,7 @@ export const sessionsDelete = <ThrowOnError extends boolean = true>(options: Opt
 /**
  * Upload your avatar
  *
- * Uploads an image as the authenticated user's avatar and switches their avatar provider to "upload". The image is validated to be an image, resized server-side, and stored as PNG. Replaces any previously uploaded avatar (idempotent replace, hence PUT). An image the server cannot decode fails with 400, an image over the pixel limit fails with 400 and code 4032, and the request fails with 503 and code 4037 when the server is too busy decoding other images.
+ * Uploads an image as the authenticated user's avatar, or for a bot they own when owner_id is set, and switches the target's avatar provider to upload. The image is validated, resized server-side, and stored as PNG. Replaces any previously uploaded avatar. An image the server cannot decode fails with 400, an image over the pixel limit fails with 400 and code 4032, and the request fails with 503 and code 4037 when the server is too busy decoding other images.
  */
 export const userAvatarUpload = <ThrowOnError extends boolean = true>(options: Options<UserAvatarUploadData, ThrowOnError>): RequestResult<UserAvatarUploadResponses, UserAvatarUploadErrors, ThrowOnError> => (options.client ?? client).put<UserAvatarUploadResponses, UserAvatarUploadErrors, ThrowOnError>({
     ...formDataBodySerializer,

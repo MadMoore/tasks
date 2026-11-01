@@ -121,6 +121,7 @@
         "enable": "Enable",
         "tokensInactive": "API tokens of a disabled bot are rejected. Enable the bot to create or use tokens.",
         "badge": "Bot",
+        "badgeOwner": "Bot, created by {user}",
         "delete": {
           "header": "Delete this bot user",
           "text1": "Are you sure you want to delete the bot user \"{username}\"?",
@@ -694,6 +695,7 @@
           "done": "Whether the task is completed or not",
           "priority": "The priority level of the task (1-5)",
           "percentDone": "The percentage of completion for the task (0-100)",
+          "sourceBucketId": "Bucket IDs in the original project boards, across views. Use this to build dynamic saved filters; moving a task changes the results automatically.",
           "dueDate": "The due date of the task",
           "startDate": "The start date of the task",
           "endDate": "The end date of the task",
@@ -866,6 +868,7 @@
     "savedFilters": "Saved filters"
   },
   "misc": {
+    "sourceCode": "Source code",
     "loading": "Loading…",
     "save": "Save",
     "delete": "Delete",
@@ -1695,7 +1698,8 @@
       "save": "Save entry",
       "startTimer": "Start timer",
       "update": "Update entry",
-      "smartFill": "Fill from last entry"
+      "smartFill": "Fill from last entry",
+      "endsSpanningEntriesAt": "Starting this timer ends your overlapping time entries at {time}."
     },
     "list": {
       "emptyTask": "No time tracked for this task yet.",

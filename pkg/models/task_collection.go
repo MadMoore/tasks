@@ -106,6 +106,7 @@ func (t TaskCollectionExpandable) Validate() error {
 func validateTaskField(fieldName string) error {
 	switch fieldName {
 	case
+		taskPropertySourceBucketID,
 		taskPropertyAssignees,
 		taskPropertyLabels,
 		taskPropertyReminders,

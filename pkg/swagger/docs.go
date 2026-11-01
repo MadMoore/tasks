@@ -10743,6 +10743,14 @@ const docTemplate = `{
                     "description": "Whether the member is an admin of the team. See the docs for more about what a team admin can do",
                     "type": "boolean"
                 },
+                "bot_owner": {
+                    "description": "The user who created this bot. Only set for bot users.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/user.User"
+                        }
+                    ]
+                },
                 "bot_owner_id": {
                     "description": "BotOwnerID is the ID of the owning (human) user if this user is a bot.\nA non-zero value means this user is a bot and cannot authenticate via password.",
                     "type": "integer"
@@ -10893,6 +10901,14 @@ const docTemplate = `{
         "models.UserWithPermission": {
             "type": "object",
             "properties": {
+                "bot_owner": {
+                    "description": "The user who created this bot. Only set for bot users.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/user.User"
+                        }
+                    ]
+                },
                 "bot_owner_id": {
                     "description": "BotOwnerID is the ID of the owning (human) user if this user is a bot.\nA non-zero value means this user is a bot and cannot authenticate via password.",
                     "type": "integer"
@@ -11109,6 +11125,14 @@ const docTemplate = `{
                 "auth_provider": {
                     "type": "string"
                 },
+                "bot_owner": {
+                    "description": "The user who created this bot. Only set for bot users.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/user.User"
+                        }
+                    ]
+                },
                 "bot_owner_id": {
                     "description": "BotOwnerID is the ID of the owning (human) user if this user is a bot.\nA non-zero value means this user is a bot and cannot authenticate via password.",
                     "type": "integer"
@@ -11182,7 +11206,24 @@ const docTemplate = `{
                 "imprint_url": {
                     "type": "string"
                 },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/shared.LegalLink"
+                    }
+                },
                 "privacy_policy_url": {
+                    "type": "string"
+                }
+            }
+        },
+        "shared.LegalLink": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string"
+                },
+                "url": {
                     "type": "string"
                 }
             }
@@ -11430,6 +11471,14 @@ const docTemplate = `{
         "user.User": {
             "type": "object",
             "properties": {
+                "bot_owner": {
+                    "description": "The user who created this bot. Only set for bot users.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/user.User"
+                        }
+                    ]
+                },
                 "bot_owner_id": {
                     "description": "BotOwnerID is the ID of the owning (human) user if this user is a bot.\nA non-zero value means this user is a bot and cannot authenticate via password.",
                     "type": "integer"
@@ -11565,6 +11614,14 @@ const docTemplate = `{
             "properties": {
                 "auth_provider": {
                     "type": "string"
+                },
+                "bot_owner": {
+                    "description": "The user who created this bot. Only set for bot users.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/user.User"
+                        }
+                    ]
                 },
                 "bot_owner_id": {
                     "description": "BotOwnerID is the ID of the owning (human) user if this user is a bot.\nA non-zero value means this user is a bot and cannot authenticate via password.",
