@@ -12,6 +12,7 @@ if [[ ${1:-} == --case ]]; then
     source_dir="$test_root/source"
     install_dir="$test_root/install"
     backup_root="$test_root/backups"
+    log_dir="$test_root/logs"
     state_dir="$test_root/data"
     config_dir="$test_root/config"
     unit_dir="$test_root/systemd"
@@ -33,7 +34,11 @@ if [[ ${1:-} == --case ]]; then
     }
     build_as_user() {
         printf 'build\n' >>"$test_root/events"
-        [[ $scenario != build-failure ]] || return 1
+        printf 'Deprecation Warning: synthetic compiler warning\n' >&2
+        if [[ $scenario == build-failure ]]; then
+            printf 'ERROR: synthetic compilation failed\n' >&2
+            return 1
+        fi
         printf 'new binary\n' >"$source_dir/vikunja"
         chmod +x "$source_dir/vikunja"
     }
@@ -75,8 +80,12 @@ for scenario in success build-failure backup-failure start-failure health-failur
         [[ $scenario != success ]] || { cat "$case_root/output"; exit 1; }
     fi
     current=$(readlink "$case_root/install/current")
+    logs=("$case_root"/logs/*.log)
+    [[ ${#logs[@]} == 1 ]]
+    grep -q 'Deprecation Warning: synthetic compiler warning' "${logs[0]}"
     case $scenario in
         build-failure)
+            grep -q 'ERROR: synthetic compilation failed' "$case_root/output"
             [[ $current == "$case_root/install/releases/old" ]]
             ! grep -q '^stop$' "$case_root/events"
             [[ ! -d $case_root/backups ]]
@@ -86,6 +95,7 @@ for scenario in success build-failure backup-failure start-failure health-failur
             [[ $(tail -n 1 "$case_root/events") == start ]]
             ;;
         *)
+            ! grep -q 'Deprecation Warning' "$case_root/output"
             [[ $current != "$case_root/install/releases/old" ]]
             [[ $(cat "$current/tasks") == 'new binary' ]]
             snapshots=("$case_root"/backups/*)

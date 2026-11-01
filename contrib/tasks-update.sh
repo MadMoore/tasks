@@ -5,6 +5,7 @@ set -Eeuo pipefail
 source_dir=/srv/tasks/source
 install_dir=/opt/tasks
 backup_root=/var/backups/tasks
+log_dir=/var/log/tasks-update
 state_dir=/var/lib/tasks
 config_dir=/etc/tasks
 unit_dir=/etc/systemd/system
@@ -78,7 +79,15 @@ main() {
     done
 
     printf '1/4 Descargar y compilar como %s. Tasks sigue funcionando.\n' "$build_user"
-    build_as_user
+    install -d -o root -g root -m 0700 "$log_dir"
+    build_log=$(mktemp "$log_dir/build-$(date +%Y%m%d-%H%M%S)-XXXXXXXX.log")
+    printf 'Salida detallada de la compilación: %s\n' "$build_log"
+    if build_as_user >"$build_log" 2>&1; then
+        printf 'Compilación completada.\n'
+    else
+        cat -- "$build_log" >&2
+        fail "La compilación ha fallado. Registro completo: $build_log"
+    fi
     revision=$(sudo -H -u "$build_user" git -C "$source_dir" rev-parse HEAD)
     [[ $revision =~ ^[0-9a-f]{40}$ ]] || fail 'Revisión Git no válida.'
     [[ -f $source_dir/vikunja && ! -L $source_dir/vikunja && -x $source_dir/vikunja ]] || fail 'No se ha generado el binario ejecutable.'
