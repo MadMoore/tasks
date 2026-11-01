@@ -46,7 +46,7 @@ jobs:
           pnpm exec eslint src/helpers/filters.ts src/helpers/filters.test.ts src/helpers/setTitle.ts src/composables/useTitle.ts src/components/home/Logo.vue src/views/tasks/ShowTasks.vue src/views/Home.vue src/components/home/HomeSearch.vue src/components/project/partials/ProjectCardGrid.vue src/composables/useTasks.ts src/helpers/branding.ts src/i18n/index.ts vite.config.ts
           pnpm exec eslint src/client/queries/avatars.ts src/views/user/settings/BotUsers.vue
           pnpm exec stylelint src/views/user/settings/BotUsers.vue
-          pnpm exec vitest run src/views/tasks/ShowTasks.test.ts src/helpers/branding.test.ts src/helpers/filters.test.ts src/views/project/settings/ProjectSettingsArchive.test.ts src/client/queries/avatars.test.ts src/client/queries/bots.test.ts src/components/misc/UserAvatar.test.ts src/components/time-tracking/TimeEntryForm.test.ts src/helpers/time/formatTimeRange.test.ts
+          pnpm exec vitest run src/views/tasks/ShowTasks.test.ts src/helpers/branding.test.ts src/helpers/filters.test.ts src/views/project/settings/ProjectSettingsArchive.test.ts src/client/queries/avatars.test.ts src/client/queries/bots.test.ts src/components/misc/UserAvatar.test.ts src/components/time-tracking/TimeEntryForm.test.ts src/helpers/time/formatTimeRange.test.ts src/components/misc/User.test.ts src/composables/useLegalLinks.test.ts src/stores/config.test.ts
       - name: Generated API client is current
         run: mage check:frontend-client
       - name: Build frontend
@@ -59,7 +59,12 @@ jobs:
           VIKUNJA_DATABASE_TYPE: sqlite
         run: |
           set -o pipefail
-          mage test:filter 'TestSourceBucketFilter|TestKanbanViewBucketFiltering|TestSavedFilter_|TestTaskBucket_|TestSubscribeCreatorsAndAssigneesToTasks20261021192508|TestTimeEntry_|TestReminder|TestGetTaskUsersForTasks|TestSendDueReminders|TestCalendarQueryFilters|TestNonVTODOContentIsForbidden|TestCRUD' 2>&1 | tee /tmp/tasks-tests.log
+          mage test:filter 'TestSourceBucketFilter|TestKanbanViewBucketFiltering|TestSavedFilter_|TestTaskBucket_|TestSubscribeCreatorsAndAssigneesToTasks20261021192508|TestTimeEntry_|TestReminder|TestGetTaskUsersForTasks|TestSendDueReminders|TestCalendarQueryFilters|TestNonVTODOContentIsForbidden|TestCRUD|TestGetLegalLinks|TestGetUserBotOwner|TestGetUserByID_|TestBotUser_|TestHumaBot|TestHumaInfo' 2>&1 | tee /tmp/tasks-tests.log
+      - name: Veans OAuth and bootstrap regressions
+        working-directory: veans
+        run: |
+          set -o pipefail
+          go test -short ./... 2>&1 | tee /tmp/tasks-veans-tests.log
       - name: Build API with embedded frontend
         run: mage build
       - name: Avatar upload ownership and image validation
