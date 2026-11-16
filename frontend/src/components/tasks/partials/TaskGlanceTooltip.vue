@@ -75,12 +75,28 @@
 								{{ getDisplayName(task.created_by) }}
 							</i18n-t>
 						</div>
+						<div
+							v-if="wasUpdated"
+							class="task-glance-updated"
+						>
+							<i18n-t
+								keypath="task.detail.updated"
+								scope="global"
+							>
+								<span>{{ formatDisplayDate(task.updated) }}</span>
+							</i18n-t>
+						</div>
 					</div>
 				</div>
 			</div>
 		</CustomTransition>
 	</Teleport>
 </template>
+
+<script lang="ts">
+// Shared across instances so scanning a list skips the delay once one tooltip was open.
+let lastHiddenAt = 0
+</script>
 
 <script setup lang="ts">
 import {parseDateOrNull} from '@/helpers/parseDateOrNull'
@@ -105,6 +121,7 @@ const props = defineProps<{
 }>()
 
 const HOVER_DELAY = 1000 // 1 second
+const WARM_WINDOW = 300
 const MAX_DESCRIPTION_LENGTH = 150
 
 // Taps on touch devices emulate mouseenter, which would show the tooltip unexpectedly.
@@ -120,6 +137,9 @@ let hoverTimeout: ReturnType<typeof setTimeout> | null = null
 let describedElement: HTMLElement | null = null
 
 const taskIdentifier = computed(() => getTaskIdentifier(props.task))
+
+// The server sets updated to created on creation, so equal values mean the task was never changed.
+const wasUpdated = computed(() => +new Date(props.task.created ?? 0) !== +new Date(props.task.updated ?? 0))
 
 const descriptionPreview = computed(() => {
 	if (isEditorContentEmpty((props.task.description ?? ''))) {
@@ -169,6 +189,7 @@ function scheduleShow() {
 		clearTimeout(hoverTimeout)
 	}
 
+	const isWarm = Date.now() - lastHiddenAt < WARM_WINDOW
 	hoverTimeout = setTimeout(async () => {
 		hoverTimeout = null
 		teleportTarget.value = getTopLayerContainer(triggerRef.value)
@@ -178,13 +199,17 @@ function scheduleShow() {
 
 		await nextTick()
 		await updatePosition()
-	}, HOVER_DELAY)
+	}, isWarm ? 0 : HOVER_DELAY)
 }
 
 function hide() {
 	if (hoverTimeout) {
 		clearTimeout(hoverTimeout)
 		hoverTimeout = null
+	}
+
+	if (showTooltip.value) {
+		lastHiddenAt = Date.now()
 	}
 
 	showTooltip.value = false
@@ -316,7 +341,8 @@ onUnmounted(hide)
 	color: var(--grey-600);
 }
 
-.task-glance-created {
+.task-glance-created,
+.task-glance-updated {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;

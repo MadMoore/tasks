@@ -2442,7 +2442,7 @@ const docTemplate = `{
                         "JWTKeyAuth": []
                     }
                 ],
-                "description": "Delets a project",
+                "description": "Moves a project and all its sub-projects to the trash. They are deleted permanently after 30 days.",
                 "produces": [
                     "application/json"
                 ],
@@ -3285,6 +3285,12 @@ const docTemplate = `{
                         "name": "view",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "If true, also returns tasks from all descendant subprojects the user can access. Their position in this view is stored separately from the one in their own project's views.",
+                        "name": "include_subprojects",
+                        "in": "query"
                     },
                     {
                         "type": "integer",
@@ -9828,6 +9834,18 @@ const docTemplate = `{
                     "description": "A timestamp when this project was created. You cannot change this value.",
                     "type": "string"
                 },
+                "deleted_at": {
+                    "description": "When this project was moved to the trash. Trashed projects are removed permanently 30 days later.",
+                    "type": "string"
+                },
+                "deleted_by": {
+                    "description": "The user who moved this project to the trash. Only present on trashed projects.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/user.User"
+                        }
+                    ]
+                },
                 "description": {
                     "description": "The description of the project.",
                     "type": "string"
@@ -10283,6 +10301,14 @@ const docTemplate = `{
                     "description": "A timestamp when this task was deleted. Soft-deleted tasks are kept for 30 days before they are removed permanently.\nomitzero keeps the field out of the JSON of regular tasks — it only ever appears on soft-deleted ones (the later trash listing).",
                     "type": "string"
                 },
+                "deleted_by": {
+                    "description": "Null for tasks soft-deleted before this was tracked.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/user.User"
+                        }
+                    ]
+                },
                 "description": {
                     "description": "The task description.",
                     "type": "string"
@@ -10480,6 +10506,9 @@ const docTemplate = `{
                 },
                 "filter_include_nulls": {
                     "description": "If set to true, the result will also include null values",
+                    "type": "boolean"
+                },
+                "include_subprojects": {
                     "type": "boolean"
                 },
                 "order_by": {
@@ -11677,6 +11706,7 @@ const docTemplate = `{
                 "code": {
                     "type": "integer"
                 },
+                "details": {},
                 "i18n_params": {
                     "description": "I18nParams carries Message's dynamic values, keyed by the client's translation placeholder names, so clients can localise the error.",
                     "type": "object",

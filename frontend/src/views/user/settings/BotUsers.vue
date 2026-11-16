@@ -268,7 +268,7 @@ async function deleteToken(token: ApiToken) {
 					<input
 						:id="id"
 						type="file"
-						accept="image/png,image/jpeg,image/gif,image/tiff,image/bmp"
+						accept="image/png,image/jpeg,image/gif,image/bmp"
 						:disabled="uploadAvatarMutation.isPending.value"
 						@change="uploadBotAvatar(bot, $event)"
 					>
