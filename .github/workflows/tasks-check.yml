@@ -46,7 +46,7 @@ jobs:
           pnpm exec eslint src/helpers/filters.ts src/helpers/filters.test.ts src/helpers/setTitle.ts src/composables/useTitle.ts src/components/home/Logo.vue src/views/tasks/ShowTasks.vue src/views/Home.vue src/components/home/HomeSearch.vue src/components/project/partials/ProjectCardGrid.vue src/composables/useTasks.ts src/helpers/branding.ts src/i18n/index.ts vite.config.ts
           pnpm exec eslint src/client/queries/avatars.ts src/views/user/settings/BotUsers.vue
           pnpm exec stylelint src/views/user/settings/BotUsers.vue
-          pnpm exec vitest run --dir ./src
+          pnpm exec vitest run --dir ./src --silent=passed-only
       - name: Generated API client is current
         run: mage check:frontend-client
       - name: Build frontend

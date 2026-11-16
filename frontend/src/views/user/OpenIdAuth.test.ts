@@ -440,7 +440,7 @@ describe('OpenIdAuth linking', () => {
 		await flushPromises()
 		await submitLink(wrapper, 'secret')
 
-		expect(wrapper.text()).toContain('already linked to another Vikunja account')
+		expect(wrapper.text()).toContain('already linked to another Tasks account')
 		expect(wrapper.find('form').exists()).toBe(false)
 		expect(localStorage.getItem('openidLinking')).toBeNull()
 	})
