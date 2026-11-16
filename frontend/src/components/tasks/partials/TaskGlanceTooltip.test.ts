@@ -16,13 +16,17 @@ vi.mock('@floating-ui/dom', () => ({
 
 // The real one reaches into the auth store for the date display setting.
 vi.mock('@/helpers/time/formatDate', () => ({
-	formatDisplayDate: () => '2024-01-01',
+	formatDisplayDate: (date: string) => date,
 }))
 
 import TaskGlanceTooltip from './TaskGlanceTooltip.vue'
 import {createTaskDraft} from '@/helpers/task'
 
 const HOVER_DELAY = 1000
+const WARM_WINDOW = 300
+
+// The warm state is module-level, so each test starts far after the previous one's hide.
+let systemTime = 0
 
 const task = createTaskDraft({
 	id: 1,
@@ -37,10 +41,10 @@ const task = createTaskDraft({
 	created_by: {id: 1, username: 'test', name: 'Test User'},
 })
 
-function mountTooltip() {
+function mountTooltip(tooltipTask = task) {
 	return mount(TaskGlanceTooltip, {
 		attachTo: document.body,
-		props: {task},
+		props: {task: tooltipTask},
 		slots: {
 			default: '<a href="/tasks/1" id="task-link">Test task</a>',
 		},
@@ -71,6 +75,8 @@ async function advancePastDelay() {
 describe('TaskGlanceTooltip.vue — keyboard accessibility', () => {
 	beforeEach(() => {
 		vi.useFakeTimers()
+		systemTime += 1_000_000
+		vi.setSystemTime(systemTime)
 	})
 
 	afterEach(() => {
@@ -171,5 +177,118 @@ describe('TaskGlanceTooltip.vue — keyboard accessibility', () => {
 
 		expect(removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function))
 		removeEventListener.mockRestore()
+	})
+})
+
+describe('TaskGlanceTooltip.vue — dates', () => {
+	beforeEach(() => {
+		vi.useFakeTimers()
+		systemTime += 1_000_000
+		vi.setSystemTime(systemTime)
+	})
+
+	afterEach(() => {
+		vi.useRealTimers()
+		document.body.innerHTML = ''
+	})
+
+	async function showTooltipFor(taskProps: Partial<typeof task>) {
+		const wrapper = mountTooltip({...task, ...taskProps})
+		await wrapper.get('.task-glance-trigger').trigger('mouseenter')
+		await advancePastDelay()
+		return wrapper
+	}
+
+	it('does not show an update for a task that was never changed', async () => {
+		const wrapper = await showTooltipFor({
+			created: '2024-01-01T10:00:00Z',
+			updated: '2024-01-01T10:00:00Z',
+		})
+
+		expect(document.body.querySelector('.task-glance-created')).not.toBeNull()
+		expect(document.body.querySelector('.task-glance-updated')).toBeNull()
+
+		wrapper.unmount()
+	})
+
+	it('shows the update of a changed task', async () => {
+		const wrapper = await showTooltipFor({
+			created: '2024-01-01T10:00:00Z',
+			updated: '2024-01-05T10:00:00Z',
+		})
+
+		expect(document.body.querySelector('.task-glance-updated')?.textContent).toContain('2024-01-05T10:00:00Z')
+
+		wrapper.unmount()
+	})
+})
+
+describe('TaskGlanceTooltip.vue — warm state', () => {
+	beforeEach(() => {
+		vi.useFakeTimers()
+		systemTime += 1_000_000
+		vi.setSystemTime(systemTime)
+	})
+
+	afterEach(() => {
+		vi.useRealTimers()
+		document.body.innerHTML = ''
+	})
+
+	async function showAndHideFirst() {
+		const first = mountTooltip()
+		const trigger = first.get('.task-glance-trigger')
+		await trigger.trigger('mouseenter')
+		await advancePastDelay()
+		expect(findTooltip()).not.toBeNull()
+		await trigger.trigger('mouseleave')
+		await nextTick()
+		first.unmount()
+	}
+
+	it('shows the next tooltip immediately after one was just open', async () => {
+		await showAndHideFirst()
+
+		const second = mountTooltip()
+		await second.get('.task-glance-trigger').trigger('mouseenter')
+		vi.advanceTimersByTime(0)
+		await nextTick()
+		await nextTick()
+		expect(findTooltip()).not.toBeNull()
+
+		second.unmount()
+	})
+
+	it('uses the full delay again once the warm window passed', async () => {
+		await showAndHideFirst()
+		vi.advanceTimersByTime(WARM_WINDOW)
+
+		const second = mountTooltip()
+		await second.get('.task-glance-trigger').trigger('mouseenter')
+		vi.advanceTimersByTime(HOVER_DELAY - 1)
+		await nextTick()
+		expect(findTooltip()).toBeNull()
+
+		await advancePastDelay()
+		expect(findTooltip()).not.toBeNull()
+
+		second.unmount()
+	})
+
+	it('does not warm up when the previous tooltip never showed', async () => {
+		const first = mountTooltip()
+		const trigger = first.get('.task-glance-trigger')
+		await trigger.trigger('mouseenter')
+		vi.advanceTimersByTime(HOVER_DELAY / 2)
+		await trigger.trigger('mouseleave')
+		first.unmount()
+
+		const second = mountTooltip()
+		await second.get('.task-glance-trigger').trigger('mouseenter')
+		vi.advanceTimersByTime(0)
+		await nextTick()
+		expect(findTooltip()).toBeNull()
+
+		second.unmount()
 	})
 })

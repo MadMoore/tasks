@@ -79,7 +79,7 @@ func FlushAllCaches(u *user.User) {
 // shared core behind both the v1 and v2 avatar endpoints: it looks up the user,
 // tolerates an unknown/disabled user (returning the default placeholder rather
 // than an error, since avatars are loaded via <img> tags), picks the right
-// provider (empty for unknown users, botmarble for bots, otherwise the user's
+// provider (empty for unknown users, botmarble for bots without an uploaded photo, otherwise the user's
 // configured provider) and normalizes the size.
 func GetAvatarForUsername(ctx context.Context, username string, size int64) (data []byte, mime string, err error) {
 	u, found, err := avatarUser(username)
@@ -92,7 +92,7 @@ func GetAvatarForUsername(ctx context.Context, username string, size int64) (dat
 		// Unknown user: serve the default placeholder.
 		provider = &empty.Provider{}
 	}
-	if found && u.IsBot() {
+	if found && u.IsBot() && (u.AvatarProvider != "upload" || u.AvatarFileID == 0) {
 		provider = &botmarble.Provider{}
 	}
 

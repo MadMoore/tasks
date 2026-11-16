@@ -39,6 +39,11 @@ type SubTableFilter struct {
 type SubTableFilters map[string]SubTableFilter
 
 var subTableFilters = SubTableFilters{
+	taskPropertySourceBucketID: {
+		Table:           "task_buckets",
+		BaseFilter:      "tasks.id = task_id",
+		FilterableField: "task_buckets.bucket_id",
+	},
 	"labels": {
 		Table:           "label_tasks",
 		BaseFilter:      "tasks.id = task_id",
@@ -120,6 +125,13 @@ func (sf *SubTableFilter) ToBaseSubQuery(taskAlias string) *builder.Builder {
 		Select("1").
 		From(sf.Table).
 		Where(builder.Expr(baseFilter))
+
+	// Virtual projects belong to saved filters; their buckets are private to
+	// the filter owner and must not influence cross-project membership.
+	if sf.Table == "task_buckets" {
+		cond.And(builder.In("project_view_id", builder.Select("id").From("project_views").
+			Where(builder.Gt{"project_id": 0})))
+	}
 
 	// little hack to add users table for assignees filter
 	if sf.Table == "task_assignees" {
@@ -502,6 +514,9 @@ func buildParentSearchCondition(search string) builder.Cond {
 	if searchIndex := getTaskIndexFromSearchString(search); searchIndex > 0 {
 		cond = builder.Or(cond, builder.Eq{"parent_tasks.`index`": searchIndex})
 	}
+	if searchID := getTaskIDFromSearchString(search); searchID > 0 {
+		cond = builder.Or(cond, builder.Eq{"parent_tasks.id": searchID})
+	}
 	return cond
 }
 
@@ -538,6 +553,7 @@ func (d *dbTaskSearcher) Search(opts *taskSearchOptions) (tasks []*Task, totalCo
 	var where builder.Cond
 
 	searchIndex := getTaskIndexFromSearchString(opts.search)
+	searchID := getTaskIDFromSearchString(opts.search)
 	if opts.search != "" {
 		// With the fuzzy cast the relevance score is a constant sum, not BM25: each
 		// query word matching a field adds 1.0 (exact/prefix) or 0.5 (one edit away),
@@ -548,6 +564,10 @@ func (d *dbTaskSearcher) Search(opts *taskSearchOptions) (tasks []*Task, totalCo
 
 		if searchIndex > 0 {
 			where = builder.Or(where, builder.Eq{"tasks.`index`": searchIndex})
+		}
+
+		if searchID > 0 {
+			where = builder.Or(where, builder.Eq{"tasks.id": searchID})
 		}
 	}
 
@@ -566,12 +586,14 @@ func (d *dbTaskSearcher) Search(opts *taskSearchOptions) (tasks []*Task, totalCo
 	// sorts by relevance — order by that score so tasks matching all query words
 	// rank above tasks matching only some.
 	//
-	// Limited to pure-text searches: numeric searches add an `OR index = N` branch,
-	// which pdb.score rejects as an unsupported query shape. pdb.score is also
-	// invalid SQL on sqlite/mysql/plain postgres, hence the ParadeDBAvailable() gate.
+	// Limited to pure-text searches: numeric searches add an `OR index = N` or
+	// `OR id = N` branch, which pdb.score rejects as an unsupported query shape.
+	// pdb.score is also invalid SQL on sqlite/mysql/plain postgres, hence the
+	// ParadeDBAvailable() gate.
 	wantsRelevanceRanking := db.ParadeDBAvailable() &&
 		opts.search != "" &&
 		searchIndex == 0 &&
+		searchID == 0 &&
 		(!opts.userProvidedSort || relevanceSortRequested)
 
 	var projectIDCond builder.Cond

@@ -17,6 +17,7 @@
 package models
 
 import (
+	"strconv"
 	"testing"
 
 	"code.vikunja.io/api/pkg/db"
@@ -355,4 +356,116 @@ func TestDBTaskSearcher_NoScopeReturnsNothing(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, tasks)
 	assert.Zero(t, count)
+}
+
+func TestSourceBucketFilter(t *testing.T) {
+	db.LoadAndAssertFixtures(t)
+	s := db.NewSession()
+	defer s.Close()
+	u := &user.User{ID: 1}
+
+	// The filter's list view has no buckets from the source project.
+	sf := &SavedFilter{
+		Title:   "Source buckets",
+		Filters: &TaskCollection{Filter: "source_bucket_id in 1, 4"},
+	}
+	require.NoError(t, sf.Create(s, u))
+	view := &ProjectView{}
+	found, err := s.Where("project_id = ? AND view_kind = ?", getProjectIDFromSavedFilterID(sf.ID), ProjectViewKindList).Get(view)
+	require.NoError(t, err)
+	require.True(t, found)
+	read := func() map[int64]int {
+		return searchTaskPositions(t, s, u, &TaskCollection{
+			ProjectID:     getProjectIDFromSavedFilterID(sf.ID),
+			ProjectViewID: view.ID,
+		}, "")
+	}
+	assert.Contains(t, read(), int64(1))
+	assert.NotContains(t, read(), int64(3)) // different source bucket
+
+	move := &TaskBucket{
+		TaskID:        1,
+		ProjectID:     1,
+		ProjectViewID: 4,
+		BucketID:      3,
+	}
+	require.NoError(t, move.Update(s, u))
+	assert.NotContains(t, read(), int64(1))
+	move.BucketID = 1
+	require.NoError(t, move.Update(s, u))
+	assert.Contains(t, read(), int64(1))
+
+	// A valid source bucket must never grant access to another user's tasks.
+	outsider := &user.User{
+		Username: "source-bucket-outsider",
+		Email:    "source-bucket-outsider@example.com",
+		Status:   user.StatusActive,
+	}
+	_, err = s.Insert(outsider)
+	require.NoError(t, err)
+	assert.Empty(t, searchTaskPositions(t, s, outsider, &TaskCollection{Filter: "source_bucket_id in 1, 4"}, ""))
+	assert.Contains(t, searchTaskPositions(t, s, &user.User{ID: 3}, &TaskCollection{Filter: "source_bucket_id = 4"}, ""), int64(13))
+
+	// This is a filter alias, never an SQL sort column.
+	require.Error(t, validateTaskFieldForSorting(taskPropertySourceBucketID))
+}
+
+func TestTaskSearchByNumber(t *testing.T) {
+	db.LoadAndAssertFixtures(t)
+	s := db.NewSession()
+	defer s.Close()
+
+	usr := &user.User{ID: 1}
+
+	tsk := &Task{
+		Title:     "search me by number",
+		ProjectID: 1,
+	}
+	require.NoError(t, tsk.Create(s, usr))
+	require.NotEqual(t, tsk.ID, tsk.Index, "this test needs a task whose id and index differ")
+
+	// The number conditions are OR-ed onto the text search, they never replace it.
+	idAsText := strconv.FormatInt(tsk.ID, 10)
+	textHit := &Task{
+		Title:       "invoice " + idAsText + " needs review",
+		Description: "paid " + idAsText,
+		ProjectID:   1,
+	}
+	require.NoError(t, textHit.Create(s, usr))
+
+	search := func(query string) map[int64]int {
+		return searchTaskPositions(t, s, usr, &TaskCollection{ProjectID: 1}, query)
+	}
+
+	t.Run("id", func(t *testing.T) {
+		assert.Contains(t, search(strconv.FormatInt(tsk.ID, 10)), tsk.ID)
+	})
+	t.Run("index", func(t *testing.T) {
+		assert.Contains(t, search(strconv.FormatInt(tsk.Index, 10)), tsk.ID)
+	})
+	t.Run("index with prefix", func(t *testing.T) {
+		assert.Contains(t, search("#"+strconv.FormatInt(tsk.Index, 10)), tsk.ID)
+	})
+	t.Run("id with prefix is an index, not an id", func(t *testing.T) {
+		assert.NotContains(t, search("#"+strconv.FormatInt(tsk.ID, 10)), tsk.ID)
+	})
+	t.Run("number in text does not match a number", func(t *testing.T) {
+		assert.NotContains(t, search("nonexistent "+strconv.FormatInt(tsk.ID, 10)), tsk.ID)
+	})
+	t.Run("tasks with the number in their text still match", func(t *testing.T) {
+		found := search(idAsText)
+		assert.Contains(t, found, tsk.ID, "the task with that id")
+		assert.Contains(t, found, textHit.ID, "the task mentioning that number in its title and description")
+	})
+	t.Run("index with prefix still matches text", func(t *testing.T) {
+		indexHit := &Task{
+			Title:     "ticket #" + strconv.FormatInt(tsk.Index, 10) + " follow-up",
+			ProjectID: 1,
+		}
+		require.NoError(t, indexHit.Create(s, usr))
+
+		found := search("#" + strconv.FormatInt(tsk.Index, 10))
+		assert.Contains(t, found, tsk.ID, "the task with that index")
+		assert.Contains(t, found, indexHit.ID, "the task mentioning that index in its title")
+	})
 }

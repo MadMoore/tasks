@@ -207,6 +207,52 @@ func TestAvatarUpload(t *testing.T) {
 	})
 }
 
+func TestAvatarUploadOwnedBot(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		caller int64
+		target int64
+		status int
+	}{
+		{"owner", 21, 23, http.StatusOK},
+		{"foreign bot", 22, 23, http.StatusForbidden},
+		{"human account", 21, 22, http.StatusForbidden},
+		{"own human account", 21, 21, http.StatusForbidden},
+		{"sibling bot", 25, 23, http.StatusForbidden},
+		{"missing bot", 21, 999999, http.StatusNotFound},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e, err := setupTestEnv()
+			require.NoError(t, err)
+			body, contentType := multipartAvatarBody(t, "avatar", "avatar.png", pngBytes(t))
+			req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("%s?owner_id=%d", avatarUploadPath, tc.target), body)
+			req.Header.Set("Content-Type", contentType)
+			req.Header.Set("Authorization", "Bearer "+humaTokenFor(t, &user.User{ID: tc.caller}))
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, req)
+			require.Equal(t, tc.status, rec.Code, "body: %s", rec.Body.String())
+			s := db.NewSession()
+			defer s.Close()
+			bot, err := user.GetUserByID(s, 23)
+			require.NoError(t, err)
+			if tc.status == http.StatusOK {
+				assert.Equal(t, "upload", bot.AvatarProvider)
+				assert.NotZero(t, bot.AvatarFileID)
+				// This is the same endpoint used by UserAvatar in comments.
+				avatar := humaRequest(t, e, http.MethodGet, "/api/v2/avatar/"+bot.Username+"?size=48", "", humaTokenFor(t, &user.User{ID: 21}), "")
+				require.Equal(t, http.StatusOK, avatar.Code)
+				_, err = png.Decode(bytes.NewReader(avatar.Body.Bytes()))
+				require.NoError(t, err)
+			} else {
+				assert.Zero(t, bot.AvatarFileID)
+			}
+			owner, err := user.GetUserByID(s, 21)
+			require.NoError(t, err)
+			assert.Zero(t, owner.AvatarFileID)
+		})
+	}
+}
+
 func pngWithClaimedDimensionsPatch(t *testing.T, width, height int) []byte {
 	t.Helper()
 	data := pngBytes(t)
@@ -324,51 +370,60 @@ func TestAvatarDecodeIsBounded(t *testing.T) {
 		require.NoError(t, err, "the previous avatar must still be readable")
 	})
 
-	t.Run("queued upload holds no transaction", func(t *testing.T) {
-		e, err := setupTestEnv()
-		require.NoError(t, err)
-		token := humaTokenFor(t, &testuser1)
+	for _, tc := range []struct {
+		name   string
+		path   string
+		caller *user.User
+	}{
+		{"queued upload holds no transaction", avatarUploadPath, &testuser1},
+		{"queued bot upload holds no transaction", avatarUploadPath + "?owner_id=23", &botOwnerA},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e, err := setupTestEnv()
+			require.NoError(t, err)
+			token := humaTokenFor(t, tc.caller)
 
-		release := imageutils.ExhaustBudgetForTests(time.Minute)
-		t.Cleanup(release)
+			release := imageutils.ExhaustBudgetForTests(time.Minute)
+			t.Cleanup(release)
 
-		ctx := &doneSignalCtx{Context: t.Context(), waiting: make(chan struct{})}
-		body, contentType := multipartAvatarBody(t, "avatar", "avatar.png", pngBytes(t))
-		req := httptest.NewRequest(http.MethodPut, avatarUploadPath, body).WithContext(ctx)
-		req.Header.Set("Content-Type", contentType)
-		req.Header.Set("Authorization", "Bearer "+token)
-		rec := httptest.NewRecorder()
-		finished := make(chan struct{})
-		go func() {
-			defer close(finished)
-			e.ServeHTTP(rec, req)
-		}()
+			ctx := &doneSignalCtx{Context: t.Context(), waiting: make(chan struct{})}
+			body, contentType := multipartAvatarBody(t, "avatar", "avatar.png", pngBytes(t))
+			req := httptest.NewRequest(http.MethodPut, tc.path, body).WithContext(ctx)
+			req.Header.Set("Content-Type", contentType)
+			req.Header.Set("Authorization", "Bearer "+token)
+			rec := httptest.NewRecorder()
+			finished := make(chan struct{})
+			go func() {
+				defer close(finished)
+				e.ServeHTTP(rec, req)
+			}()
 
-		select {
-		case <-ctx.waiting:
-		case <-time.After(5 * time.Second):
-			require.FailNow(t, "the upload never queued for decode capacity")
-		}
-		s := db.NewSession()
-		_, err = s.ID(testuser2.ID).Cols("name").Update(&user.User{Name: "written while an upload is queued"})
-		if err == nil {
-			err = s.Commit()
-		}
-		s.Close()
-		require.NoError(t, err)
-		db.AssertExists(t, "users", map[string]interface{}{
-			"id":   testuser2.ID,
-			"name": "written while an upload is queued",
-		}, false)
+			select {
+			case <-ctx.waiting:
+			case <-time.After(5 * time.Second):
+				require.FailNow(t, "the upload never queued for decode capacity")
+			}
+			s := db.NewSession()
+			_, err = s.ID(testuser2.ID).Cols("name").Update(&user.User{Name: "written while an upload is queued"})
+			if err == nil {
+				err = s.Commit()
+			}
+			s.Close()
+			require.NoError(t, err)
+			db.AssertExists(t, "users", map[string]interface{}{
+				"id":   testuser2.ID,
+				"name": "written while an upload is queued",
+			}, false)
 
-		release()
-		select {
-		case <-finished:
-		case <-time.After(10 * time.Second):
-			require.FailNow(t, "the upload did not finish after the budget was released")
-		}
-		assert.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
-	})
+			release()
+			select {
+			case <-finished:
+			case <-time.After(10 * time.Second):
+				require.FailNow(t, "the upload did not finish after the budget was released")
+			}
+			assert.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
+		})
+	}
 
 	t.Run("busy avatar read is a 503", func(t *testing.T) {
 		e, err := setupTestEnv()

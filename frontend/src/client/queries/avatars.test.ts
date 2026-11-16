@@ -18,6 +18,20 @@ vi.mock('@/message', () => ({error: vi.fn(), success: vi.fn()}))
 
 describe('avatar mutations', () => {
 	beforeEach(() => vi.clearAllMocks())
+	it('uploads for the owned bot and refreshes all its comment avatar sizes only', async () => {
+		const client = new QueryClient()
+		for (const size of [20, 48]) client.setQueryData(avatarKeys.image('bot-assistant', size), new Blob())
+		client.setQueryData(avatarKeys.image('owner', 48), new Blob())
+		client.setQueryData(avatarKeys.provider, {avatar_provider: 'initials'})
+		sdk.userAvatarUpload.mockResolvedValue({data: {}})
+		await client.getMutationCache().build(client, uploadAvatarMutationOptions()).execute({
+			username: 'bot-assistant', ownerId: 23, blob: new Blob(['bytes'], {type: 'image/png'}),
+		})
+		expect(sdk.userAvatarUpload).toHaveBeenCalledWith(expect.objectContaining({query: {owner_id: 23}}))
+		for (const size of [20, 48]) expect(client.getQueryState(avatarKeys.image('bot-assistant', size))?.isInvalidated).toBe(true)
+		expect(client.getQueryState(avatarKeys.image('owner', 48))?.isInvalidated).toBe(false)
+		expect(client.getQueryState(avatarKeys.provider)?.isInvalidated).toBe(false)
+	})
 	it('invalidates every size of the changed avatar without touching another user', async () => {
 		const client = new QueryClient()
 		for (const size of [20, 50]) client.setQueryData(avatarKeys.image('sam', size), new Blob())
