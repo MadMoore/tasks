@@ -54,6 +54,12 @@ jobs:
         run: pnpm build
       - name: Backend lint
         run: mage lint:fix
+      - name: Avatar upload ownership and image validation
+        env:
+          VIKUNJA_DATABASE_TYPE: sqlite
+        run: |
+          set -o pipefail
+          go test -v -run '^TestAvatar' ./pkg/webtests/ 2>&1 | tee /tmp/tasks-avatar-webtests.log
       - name: Fork regressions and upstream migration, reminders, timers and CalDAV
         env:
           VIKUNJA_DATABASE_TYPE: sqlite
@@ -68,12 +74,6 @@ jobs:
           go test -short ./... 2>&1 | tee /tmp/tasks-veans-tests.log
       - name: Build API with embedded frontend
         run: mage build
-      - name: Avatar upload ownership and image validation
-        env:
-          VIKUNJA_DATABASE_TYPE: sqlite
-        run: |
-          set -o pipefail
-          go test -v -run '^TestAvatarUpload' ./pkg/webtests/ 2>&1 | tee /tmp/tasks-avatar-webtests.log
       - name: Install Chromium for home verification
         working-directory: frontend
         run: pnpm exec playwright install --with-deps chromium

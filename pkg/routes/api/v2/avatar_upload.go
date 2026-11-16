@@ -73,22 +73,19 @@ func avatarUpload(ctx context.Context, in *avatarUploadInput) (*avatarUploadBody
 	src := in.RawBody.Data().Avatar
 	defer func() { _ = src.Close() }()
 
-	s := db.NewSession()
-	defer s.Close()
-	defer events.CleanupPending(s)
-
-	// Re-fetch the full user: the auth user from the JWT claims is partial.
 	targetID := authUser.ID
 	if in.OwnerID != 0 {
 		targetID = in.OwnerID
-	}
-	u, err := user.GetUserByID(s, targetID)
-	if err != nil {
-		_ = s.Rollback()
-		return nil, translateDomainError(err)
-	}
-	if in.OwnerID != 0 && !u.IsBotOwnedBy(authUser) {
-		return nil, huma.Error403Forbidden("you do not own this bot user")
+		// Reject foreign targets before decoding, then release the read transaction.
+		preflight := db.NewSession()
+		bot, err := user.GetUserByID(preflight, targetID)
+		preflight.Close()
+		if err != nil {
+			return nil, translateDomainError(err)
+		}
+		if !bot.IsBotOwnedBy(authUser) {
+			return nil, huma.Error403Forbidden("you do not own this bot user")
+		}
 	}
 
 	prepared, err := avatar.PrepareUpload(ctx, src)
@@ -97,6 +94,20 @@ func avatarUpload(ctx context.Context, in *avatarUploadInput) (*avatarUploadBody
 	}
 	if err != nil {
 		return nil, translateDomainError(err)
+	}
+
+	s := db.NewSession()
+	defer s.Close()
+	defer events.CleanupPending(s)
+
+	// Re-fetch and authorize after decoding so queued uploads hold no transaction.
+	u, err := user.GetUserByID(s, targetID)
+	if err != nil {
+		_ = s.Rollback()
+		return nil, translateDomainError(err)
+	}
+	if in.OwnerID != 0 && !u.IsBotOwnedBy(authUser) {
+		return nil, huma.Error403Forbidden("you do not own this bot user")
 	}
 
 	if err := avatar.SaveUploaded(s, u, prepared); err != nil {
